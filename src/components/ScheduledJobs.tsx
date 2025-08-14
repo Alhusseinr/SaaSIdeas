@@ -16,6 +16,47 @@ interface ScheduledJob {
   type: 'pg_cron' | 'edge_function' | 'external'
 }
 
+// Helper functions for user-friendly job information
+const getUserFriendlyJobName = (jobname: string): string => {
+  const jobMappings: Record<string, string> = {
+    'daily-reddit-ingest': '🔄 Daily Reddit Ingestion',
+    'hourly-enrich': '✨ Hourly Data Enrichment',
+    'daily-negative-summary': '📊 Daily Negative Summary',
+    'weekly-idea-generation': '💡 Weekly Idea Generation'
+  }
+  return jobMappings[jobname] || jobname
+}
+
+const getUserFriendlyJobDescription = (jobname: string): string => {
+  const descriptionMappings: Record<string, string> = {
+    'daily-reddit-ingest': 'Automatically fetches and processes new Reddit posts every morning at 6 AM',
+    'hourly-enrich': 'Enriches Reddit post data with additional metadata and analysis every hour',
+    'daily-negative-summary': 'Analyzes and summarizes negative sentiment posts daily at 8 PM',
+    'weekly-idea-generation': 'Generates new SaaS ideas from processed data every Sunday morning'
+  }
+  return descriptionMappings[jobname] || 'Automated database task'
+}
+
+const getHumanReadableSchedule = (cronSchedule: string): string => {
+  const scheduleMap: Record<string, string> = {
+    '0 6 * * *': 'Daily at 6:00 AM',
+    '0 * * * *': 'Every hour',
+    '0 20 * * *': 'Daily at 8:00 PM',
+    '0 10 * * 0': 'Sundays at 10:00 AM'
+  }
+  return scheduleMap[cronSchedule] || cronSchedule
+}
+
+const getJobIcon = (jobname: string): string => {
+  const iconMappings: Record<string, string> = {
+    'daily-reddit-ingest': '🔄',
+    'hourly-enrich': '✨',
+    'daily-negative-summary': '📊',
+    'weekly-idea-generation': '💡'
+  }
+  return iconMappings[jobname] || '⚙️'
+}
+
 export default function ScheduledJobs() {
   const [jobs, setJobs] = useState<ScheduledJob[]>([])
   const [loading, setLoading] = useState(false)
@@ -41,11 +82,11 @@ export default function ScheduledJobs() {
           return []
         }
         
-        // Transform the results
+        // Transform the results with user-friendly names and descriptions
         return (directData || []).map((job: any) => ({
           id: job.jobid?.toString() || job.jobname,
-          name: job.jobname || `Job ${job.jobid}`,
-          description: job.command || 'Database scheduled job',
+          name: getUserFriendlyJobName(job.jobname) || `Job ${job.jobid}`,
+          description: getUserFriendlyJobDescription(job.jobname) || 'Database scheduled job',
           schedule: job.schedule || 'Unknown',
           sql_command: job.command,
           type: 'pg_cron' as const,
@@ -55,11 +96,11 @@ export default function ScheduledJobs() {
         }))
       }
       
-      // Transform RPC data if successful
+      // Transform RPC data if successful with user-friendly names
       return (data || []).map((job: any) => ({
         id: job.jobid?.toString() || job.jobname,
-        name: job.jobname || `Job ${job.jobid}`,
-        description: job.command || 'Database scheduled job',
+        name: getUserFriendlyJobName(job.jobname) || `Job ${job.jobid}`,
+        description: getUserFriendlyJobDescription(job.jobname) || 'Database scheduled job',
         schedule: job.schedule || 'Unknown',
         sql_command: job.command,
         type: 'pg_cron' as const,
@@ -122,8 +163,9 @@ export default function ScheduledJobs() {
   }
 
   const triggerJobManually = async (job: ScheduledJob) => {
-    if (!job.function_name) {
-      setError('Cannot trigger this job type manually')
+    // Only allow triggering of edge function jobs
+    if (job.type !== 'edge_function' || !job.function_name) {
+      setError('This job cannot be triggered manually')
       return
     }
 
@@ -203,44 +245,94 @@ export default function ScheduledJobs() {
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-4 sm:space-y-6">
           {jobs.map((job) => (
-            <div key={job.id} className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <h3 className="font-medium text-gray-900">{job.name}</h3>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
-                      {job.status}
-                    </span>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(job.type)}`}>
-                      {job.type}
+            <div key={job.id} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+              {/* Header Section */}
+              <div className="flex items-start space-x-3 mb-4">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-xl flex items-center justify-center text-xl sm:text-2xl">
+                    {getJobIcon(job.id)}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between sm:space-x-3 mb-2">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{job.name}</h3>
+                    <span className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${getStatusColor(job.status)} mt-1 sm:mt-0 self-start sm:self-auto flex-shrink-0`}>
+                      <div className={`w-2 h-2 rounded-full mr-2 ${job.status === 'active' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
+                      {job.status === 'active' ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">{job.description}</p>
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <div><strong>Schedule:</strong> {job.schedule}</div>
-                    <div><strong>Last Run:</strong> {formatDateTime(job.last_run)}</div>
-                    <div><strong>Next Run:</strong> {formatDateTime(job.next_run)}</div>
-                    {job.function_name && (
-                      <div><strong>Function:</strong> {job.function_name}</div>
+                  <p className="text-sm sm:text-base text-gray-600 leading-relaxed mb-3 sm:mb-4">{job.description}</p>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div className="mb-4">
+                {job.type === 'edge_function' && job.function_name ? (
+                  <button
+                    onClick={() => triggerJobManually(job)}
+                    disabled={triggeringJobs.has(job.id) || job.status !== 'active'}
+                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 sm:py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center space-x-2"
+                    title={job.status !== 'active' ? 'Job is not active' : 'Run job now'}
+                  >
+                    {triggeringJobs.has(job.id) ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Running...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-6L8 8" />
+                        </svg>
+                        <span>Run Now</span>
+                      </>
                     )}
-                    {job.sql_command && (
-                      <div><strong>SQL:</strong> <code className="bg-gray-100 px-1 rounded">{job.sql_command}</code></div>
-                    )}
+                  </button>
+                ) : (
+                  <div className="w-full sm:w-auto bg-gray-50 text-gray-500 italic px-4 py-2 rounded-lg text-sm text-center">
+                    Auto-scheduled
+                  </div>
+                )}
+              </div>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t border-gray-100">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-purple-50 rounded-lg flex-shrink-0">
+                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Schedule</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{getHumanReadableSchedule(job.schedule)}</p>
                   </div>
                 </div>
 
-                <div className="flex space-x-2">
-                  {job.function_name && (
-                    <button
-                      onClick={() => triggerJobManually(job)}
-                      disabled={triggeringJobs.has(job.id)}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
-                    >
-                      {triggeringJobs.has(job.id) ? 'Running...' : 'Trigger Now'}
-                    </button>
-                  )}
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-green-50 rounded-lg flex-shrink-0">
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Run</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{formatDateTime(job.last_run)}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-50 rounded-lg flex-shrink-0">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Type</p>
+                    <p className="text-sm font-semibold text-gray-900 capitalize truncate">{job.type.replace('_', ' ')}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -248,15 +340,47 @@ export default function ScheduledJobs() {
         </div>
 
         {jobs.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <div className="text-gray-500">No scheduled jobs found.</div>
-            <div className="text-sm text-gray-400 mt-2 space-y-1">
-              <p>To set up scheduled jobs, you can:</p>
-              <ul className="text-left max-w-md mx-auto space-y-1">
-                <li>• Enable pg_cron extension in Supabase dashboard</li>
-                <li>• Create Edge Functions with cron triggers</li>
-                <li>• Set up external schedulers (GitHub Actions, etc.)</li>
-              </ul>
+          <div className="text-center py-16">
+            <div className="mx-auto w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+              <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Scheduled Jobs</h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Set up automated tasks to run your Edge Functions on schedule.
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 max-w-2xl mx-auto">
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <h4 className="font-semibold text-blue-900 mb-2">Quick Setup Guide</h4>
+                  <ol className="space-y-2 text-sm text-blue-800">
+                    <li className="flex items-start space-x-2">
+                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">1</span>
+                      <span>Go to your Supabase Dashboard → Database → Extensions</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">2</span>
+                      <span>Enable the <code className="bg-blue-100 px-1 rounded">pg_cron</code> extension</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">3</span>
+                      <span>Run the SQL commands provided in the setup guide</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">4</span>
+                      <span>Refresh this page to see your scheduled jobs</span>
+                    </li>
+                  </ol>
+                </div>
+              </div>
             </div>
           </div>
         )}
