@@ -24,17 +24,38 @@ export default function ScheduledJobs() {
 
   const fetchPgCronJobs = async () => {
     try {
-      // Try to query pg_cron jobs if the extension is enabled
-      const { data, error } = await supabase
-        .from('cron.job')
-        .select('*')
+      // Use RPC to query cron jobs since direct table access might not work
+      const { data, error } = await supabase.rpc('get_cron_jobs_info')
       
       if (error) {
-        console.warn('pg_cron not accessible or not enabled:', error.message)
-        return []
+        console.warn('Custom RPC not found, trying direct query:', error.message)
+        
+        // Fallback to direct SQL query
+        const { data: directData, error: directError } = await supabase
+          .rpc('exec_sql', { 
+            query: 'SELECT jobid, jobname, schedule, active, command FROM cron.job ORDER BY jobid' 
+          })
+        
+        if (directError) {
+          console.warn('Direct SQL query failed:', directError.message)
+          return []
+        }
+        
+        // Transform the results
+        return (directData || []).map((job: any) => ({
+          id: job.jobid?.toString() || job.jobname,
+          name: job.jobname || `Job ${job.jobid}`,
+          description: job.command || 'Database scheduled job',
+          schedule: job.schedule || 'Unknown',
+          sql_command: job.command,
+          type: 'pg_cron' as const,
+          status: (job.active ? 'active' : 'inactive') as 'active' | 'inactive',
+          last_run: undefined,
+          next_run: undefined
+        }))
       }
       
-      // Transform pg_cron data to our format
+      // Transform RPC data if successful
       return (data || []).map((job: any) => ({
         id: job.jobid?.toString() || job.jobname,
         name: job.jobname || `Job ${job.jobid}`,
@@ -43,8 +64,8 @@ export default function ScheduledJobs() {
         sql_command: job.command,
         type: 'pg_cron' as const,
         status: (job.active ? 'active' : 'inactive') as 'active' | 'inactive',
-        last_run: job.last_run_start_time,
-        next_run: undefined // pg_cron doesn't provide next run time easily
+        last_run: job.last_run,
+        next_run: undefined
       }))
     } catch (err) {
       console.warn('Could not fetch pg_cron jobs:', err)
