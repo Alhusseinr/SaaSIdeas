@@ -42,9 +42,9 @@ export default function ScheduledJobs() {
         schedule: job.schedule || 'Unknown',
         sql_command: job.command,
         type: 'pg_cron' as const,
-        status: job.active ? 'active' : 'inactive' as const,
+        status: (job.active ? 'active' : 'inactive') as 'active' | 'inactive',
         last_run: job.last_run_start_time,
-        next_run: null // pg_cron doesn't provide next run time easily
+        next_run: undefined // pg_cron doesn't provide next run time easily
       }))
     } catch (err) {
       console.warn('Could not fetch pg_cron jobs:', err)
