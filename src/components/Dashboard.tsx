@@ -60,7 +60,7 @@ export default function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
-          {process.env.NODE_ENV === 'development' && <EdgeFunctions />}
+          {process.env.NEXT_PUBLIC_SHOW_EDGE_FUNCTIONS === 'true' && <EdgeFunctions />}
           
           <ScheduledJobs />
           
