@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
+export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: (planId?: string) => void, onSignIn?: () => void }) {
   const [activePlan, setActivePlan] = useState('pro')
 
   const features = [
@@ -64,6 +64,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
 
   const pricingPlans = [
     {
+      id: 'starter',
       name: 'Starter',
       price: 49,
       period: 'month',
@@ -80,6 +81,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
       popular: false
     },
     {
+      id: 'pro',
       name: 'Pro',
       price: 99,
       period: 'month',
@@ -99,6 +101,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
       popular: true
     },
     {
+      id: 'enterprise',
       name: 'Enterprise',
       price: 199,
       period: 'month',
@@ -158,12 +161,20 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
               </div>
               <span className="text-xl font-bold text-gray-900">IdeaValidator</span>
             </div>
-            <button
-              onClick={onGetStarted}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
-            >
-              Get Started
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => onSignIn && onSignIn()}
+                className="text-gray-600 hover:text-gray-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => onGetStarted()}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+              >
+                Get Started
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -181,15 +192,12 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
               Stop guessing what to build. Our AI analyzes millions of real user complaints and market signals 
               to surface validated SaaS opportunities with proven demand.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex justify-center">
               <button
-                onClick={onGetStarted}
+                onClick={() => onGetStarted()}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
               >
-                Start Finding Ideas Today
-              </button>
-              <button className="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-lg text-lg font-semibold hover:border-gray-400 transition-colors">
-                Watch Demo
+                Get Instant Access
               </button>
             </div>
           </div>
@@ -247,7 +255,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20 bg-white">
+      <section id="pricing" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -297,14 +305,14 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
                 </ul>
                 
                 <button
-                  onClick={onGetStarted}
+                  onClick={() => onGetStarted(plan.id)}
                   className={`w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200 ${
                     plan.popular
                       ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transform hover:scale-105'
                       : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                   }`}
                 >
-                  Get Started
+                  Get Started with {plan.name}
                 </button>
               </div>
             ))}
@@ -351,14 +359,11 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
             Join thousands of entrepreneurs who use our platform to discover, validate, and build successful SaaS products.
           </p>
           <button
-            onClick={onGetStarted}
+            onClick={() => onGetStarted()}
             className="bg-white text-blue-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transform hover:scale-105 transition-all duration-200 shadow-lg"
           >
-            Start Your Free Trial
+            Get Instant Access
           </button>
-          <p className="text-blue-100 mt-4 text-sm">
-            No credit card required • 7-day free trial • Cancel anytime
-          </p>
         </div>
       </section>
 

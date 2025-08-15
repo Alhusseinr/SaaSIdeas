@@ -7,8 +7,9 @@ import DataTable from './DataTable'
 import EdgeFunctions from './EdgeFunctions'
 import ScheduledJobs from './ScheduledJobs'
 import IdeaValidator from './IdeaValidator'
+import SubscriptionPage from './SubscriptionPage'
 
-type TabType = 'overview' | 'validator' | 'ideas' | 'jobs' | 'functions'
+type TabType = 'overview' | 'validator' | 'ideas' | 'jobs' | 'functions' | 'subscription'
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
@@ -51,6 +52,7 @@ export default function Dashboard() {
     { id: 'overview', name: 'Overview', icon: '📊' },
     { id: 'validator', name: 'Idea Validator', icon: '🔍' },
     { id: 'ideas', name: 'SaaS Ideas', icon: '💡' },
+    { id: 'subscription', name: 'Subscription', icon: '💳' },
     { id: 'jobs', name: 'Data Pipeline', icon: '⚙️' },
     ...(process.env.NEXT_PUBLIC_SHOW_EDGE_FUNCTIONS === 'true' ? [{ id: 'functions', name: 'Edge Functions', icon: '🔧' }] : [])
   ]
@@ -201,6 +203,8 @@ export default function Dashboard() {
             <DataTable items={items} />
           </div>
         )
+      case 'subscription':
+        return <SubscriptionPage />
       case 'jobs':
         return <ScheduledJobs />
       case 'functions':
