@@ -19,36 +19,51 @@ interface ScheduledJob {
 // Helper functions for user-friendly job information
 const getUserFriendlyJobName = (jobname: string): string => {
   const jobMappings: Record<string, string> = {
-    'daily-reddit-ingest': '🔄 Daily Reddit Ingestion',
-    'hourly-enrich': '✨ Hourly Data Enrichment',
-    'daily-negative-summary': '📊 Daily Negative Summary',
-    'weekly-idea-generation': '💡 Weekly Idea Generation'
+    'daily-complete-refresh': '🔄 Daily Complete Pipeline',
+    'midday-trend-update': '📈 Midday Trend Update',
+    'monthly-cleanup': '🧹 Monthly Data Cleanup',
+    // Legacy job names (deprecated)
+    'daily-reddit-ingest': '🔄 Daily Reddit Ingestion (Legacy)',
+    'hourly-enrich': '✨ Hourly Data Enrichment (Legacy)',
+    'daily-negative-summary': '📊 Daily Negative Summary (Legacy)',
+    'weekly-idea-generation': '💡 Weekly Idea Generation (Legacy)'
   }
   return jobMappings[jobname] || jobname
 }
 
 const getUserFriendlyJobDescription = (jobname: string): string => {
   const descriptionMappings: Record<string, string> = {
-    'daily-reddit-ingest': 'Automatically fetches and processes new Reddit posts every morning at 6 AM',
-    'hourly-enrich': 'Enriches Reddit post data with additional metadata and analysis every hour',
-    'daily-negative-summary': 'Analyzes and summarizes negative sentiment posts daily at 8 PM',
-    'weekly-idea-generation': 'Generates new SaaS ideas from processed data every Sunday morning'
+    'daily-complete-refresh': 'Runs complete pipeline: Reddit ingestion → Summarization → SaaS idea generation. Ensures fresh daily opportunities.',
+    'midday-trend-update': 'Light trend update at noon to refresh trending ideas without full pipeline processing.',
+    'monthly-cleanup': 'Archives old data and cleans up logs to maintain optimal database performance.',
+    // Legacy descriptions
+    'daily-reddit-ingest': 'Legacy: Fetches Reddit posts (replaced by daily-complete-refresh)',
+    'hourly-enrich': 'Legacy: Enriches post data (replaced by daily-complete-refresh)',
+    'daily-negative-summary': 'Legacy: Summarizes negative posts (replaced by daily-complete-refresh)',
+    'weekly-idea-generation': 'Legacy: Generates ideas weekly (replaced by daily-complete-refresh)'
   }
   return descriptionMappings[jobname] || 'Automated database task'
 }
 
 const getHumanReadableSchedule = (cronSchedule: string): string => {
   const scheduleMap: Record<string, string> = {
-    '0 6 * * *': 'Daily at 6:00 AM',
-    '0 * * * *': 'Every hour',
-    '0 20 * * *': 'Daily at 8:00 PM',
-    '0 10 * * 0': 'Sundays at 10:00 AM'
+    '0 6 * * *': 'Daily at 6:00 AM UTC',
+    '0 12 * * *': 'Daily at 12:00 PM UTC',
+    '0 2 1 * *': 'Monthly on 1st at 2:00 AM',
+    // Legacy schedules
+    '0 * * * *': 'Every hour (Legacy)',
+    '0 20 * * *': 'Daily at 8:00 PM (Legacy)',
+    '0 10 * * 0': 'Sundays at 10:00 AM (Legacy)'
   }
   return scheduleMap[cronSchedule] || cronSchedule
 }
 
 const getJobIcon = (jobname: string): string => {
   const iconMappings: Record<string, string> = {
+    'daily-complete-refresh': '🔄',
+    'midday-trend-update': '📈',
+    'monthly-cleanup': '🧹',
+    // Legacy icons
     'daily-reddit-ingest': '🔄',
     'hourly-enrich': '✨',
     'daily-negative-summary': '📊',

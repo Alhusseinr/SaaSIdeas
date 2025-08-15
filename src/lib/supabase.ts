@@ -5,6 +5,28 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+export interface CompetitiveLandscape {
+  direct_competitors: string[]
+  indirect_competitors: string[]
+  market_gap_score: number
+  differentiation_opportunities: string[]
+  competitive_advantage: string
+}
+
+export interface RevenueProjection {
+  monthly_recurring_revenue: {
+    month_6: number
+    month_12: number
+    month_24: number
+  }
+  pricing_model: string
+  target_customers: number
+  average_revenue_per_user: number
+  churn_rate: number
+  customer_acquisition_cost: number
+  lifetime_value: number
+}
+
 export interface SaasIdeaItem {
   id: number
   run_id: number
@@ -19,6 +41,34 @@ export interface SaasIdeaItem {
   representative_post_ids: number[] | null
   payload: any
   created_at: string | null
+  // Enhanced analysis fields
+  competitive_landscape: CompetitiveLandscape | null
+  founder_market_fit_score: number | null
+  revenue_projection: RevenueProjection | null
+  technical_feasibility_score: number | null
+  go_to_market_difficulty: number | null
+  market_size_estimate: number | null
+  development_timeline_months: number | null
+  required_skills: string[] | null
+  investment_required: number | null
+}
+
+export interface DailyProblem {
+  id: string
+  idea_id: string
+  featured_date: string
+  engagement_score: number
+  created_at: string
+}
+
+export interface ProblemTrend {
+  id: string
+  idea_id: string
+  date: string
+  mention_count: number
+  sentiment_score: number
+  trend_score: number
+  created_at: string
 }
 
 export const invokeEdgeFunction = async (functionName: string, payload?: any) => {

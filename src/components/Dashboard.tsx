@@ -8,6 +8,8 @@ import EdgeFunctions from './EdgeFunctions'
 import ScheduledJobs from './ScheduledJobs'
 import IdeaValidator from './IdeaValidator'
 import SubscriptionPage from './SubscriptionPage'
+import ProblemOfTheDay from './ProblemOfTheDay'
+import TrendingProblems from './TrendingProblems'
 
 type TabType = 'overview' | 'validator' | 'ideas' | 'jobs' | 'functions' | 'subscription'
 
@@ -17,6 +19,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<TabType>('overview')
+  const [selectedItem, setSelectedItem] = useState<SaasIdeaItem | null>(null)
 
   useEffect(() => {
     fetchItems()
@@ -57,8 +60,16 @@ export default function Dashboard() {
     ...(process.env.NEXT_PUBLIC_SHOW_EDGE_FUNCTIONS === 'true' ? [{ id: 'functions', name: 'Edge Functions', icon: '🔧' }] : [])
   ]
 
+  const handleViewDetails = (idea: SaasIdeaItem) => {
+    setSelectedItem(idea)
+    setActiveTab('ideas')
+  }
+
   const renderOverview = () => (
     <div className="space-y-6">
+      {/* Problem of the Day */}
+      <ProblemOfTheDay onViewDetails={handleViewDetails} />
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
@@ -115,6 +126,9 @@ export default function Dashboard() {
           <p className="text-purple-600 text-sm">Overall quality</p>
         </div>
       </div>
+
+      {/* Trending Problems */}
+      <TrendingProblems onViewDetails={handleViewDetails} />
 
       {/* Recent Ideas */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">

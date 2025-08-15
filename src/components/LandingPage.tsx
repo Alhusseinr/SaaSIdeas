@@ -1,9 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import TodaysOpportunityCard from './TodaysOpportunityCard'
 
 export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: (planId?: string) => void, onSignIn?: () => void }) {
-  const [activePlan, setActivePlan] = useState('pro')
 
   const features = [
     {
@@ -179,27 +178,59 @@ export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: 
         </div>
       </header>
 
-      {/* Hero Section */}
+      {/* Hero Section with 50/50 Split */}
       <section className="bg-gradient-to-br from-blue-50 via-white to-purple-50 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-              Discover Your Next
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> Million-Dollar </span>
-              SaaS Idea
-            </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
-              Stop guessing what to build. Our AI analyzes millions of real user complaints and market signals 
-              to surface validated SaaS opportunities with proven demand.
-            </p>
-            <div className="flex justify-center">
-              <button
-                onClick={() => onGetStarted()}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
-              >
-                Get Instant Access
-              </button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Left Side - Value Proposition */}
+            <div className="text-center lg:text-left">
+              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+                Discover Your Next
+                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> Million-Dollar </span>
+                SaaS Idea
+              </h1>
+              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+                Stop guessing what to build. Our AI analyzes millions of real user complaints and market signals 
+                to surface validated SaaS opportunities with proven demand.
+              </p>
+              
+              {/* Key Benefits */}
+              <div className="space-y-4 mb-8">
+                <div className="flex items-center justify-center lg:justify-start">
+                  <svg className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-gray-700">Real problems from actual Reddit users</span>
+                </div>
+                <div className="flex items-center justify-center lg:justify-start">
+                  <svg className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-gray-700">AI-powered market analysis & validation</span>
+                </div>
+                <div className="flex items-center justify-center lg:justify-start">
+                  <svg className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-gray-700">Complete implementation roadmaps</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <button
+                  onClick={() => onGetStarted()}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
+                >
+                  Get Instant Access
+                </button>
+                <button className="border border-gray-300 text-gray-700 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors">
+                  View Today's Opportunity →
+                </button>
+              </div>
             </div>
+
+            {/* Right Side - Today's Validated Opportunity */}
+            <TodaysOpportunityCard onGetStarted={onGetStarted} />
           </div>
         </div>
       </section>
