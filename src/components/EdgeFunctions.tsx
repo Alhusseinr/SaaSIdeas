@@ -162,7 +162,14 @@ export default function EdgeFunctions() {
 
               {results[func.name] && (
                 <div className="mt-3">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Result:</h4>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium text-gray-900">Result:</h4>
+                    {results[func.name]?.function_info && (
+                      <div className="text-xs text-gray-500">
+                        v{results[func.name].function_info.version} • Updated {new Date(results[func.name].function_info.last_updated).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
                   <pre className="bg-gray-50 border border-gray-200 rounded-md p-3 text-xs overflow-x-auto text-gray-800">
                     {JSON.stringify(results[func.name], null, 2)}
                   </pre>
