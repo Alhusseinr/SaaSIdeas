@@ -1,11 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import LoginForm from '@/components/LoginForm'
 import Dashboard from '@/components/Dashboard'
+import LandingPage from '@/components/LandingPage'
 
 export default function Home() {
   const { user, loading } = useAuth()
+  const [showLogin, setShowLogin] = useState(false)
 
   if (loading) {
     return (
@@ -16,7 +19,10 @@ export default function Home() {
   }
 
   if (!user) {
-    return <LoginForm onSuccess={() => window.location.reload()} />
+    if (showLogin) {
+      return <LoginForm onSuccess={() => window.location.reload()} />
+    }
+    return <LandingPage onGetStarted={() => setShowLogin(true)} />
   }
 
   return <Dashboard />
