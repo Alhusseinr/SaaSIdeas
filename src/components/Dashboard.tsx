@@ -8,11 +8,14 @@ import EdgeFunctions from './EdgeFunctions'
 import ScheduledJobs from './ScheduledJobs'
 import IdeaValidator from './IdeaValidator'
 
+type TabType = 'overview' | 'validator' | 'ideas' | 'jobs' | 'functions'
+
 export default function Dashboard() {
   const { user, signOut } = useAuth()
   const [items, setItems] = useState<SaasIdeaItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [activeTab, setActiveTab] = useState<TabType>('overview')
 
   useEffect(() => {
     fetchItems()
@@ -40,28 +43,201 @@ export default function Dashboard() {
     }
   }
 
+  const getTopScoreIdeas = () => items.filter(item => item.score >= 80)
+  const getGoodIdeas = () => items.filter(item => item.score >= 60 && item.score < 80)
+  const getRecentIdeas = () => items.slice(0, 5)
+
+  const tabs = [
+    { id: 'overview', name: 'Overview', icon: '📊' },
+    { id: 'validator', name: 'Idea Validator', icon: '🔍' },
+    { id: 'ideas', name: 'SaaS Ideas', icon: '💡' },
+    { id: 'jobs', name: 'Data Pipeline', icon: '⚙️' },
+    ...(process.env.NEXT_PUBLIC_SHOW_EDGE_FUNCTIONS === 'true' ? [{ id: 'functions', name: 'Edge Functions', icon: '🔧' }] : [])
+  ]
+
+  const renderOverview = () => (
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <span className="text-3xl font-bold text-blue-700">{items.length}</span>
+          </div>
+          <h3 className="text-lg font-semibold text-blue-900 mb-1">Total Ideas</h3>
+          <p className="text-blue-600 text-sm">Validated opportunities</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+            <span className="text-3xl font-bold text-green-700">{getTopScoreIdeas().length}</span>
+          </div>
+          <h3 className="text-lg font-semibold text-green-900 mb-1">High-Score Ideas</h3>
+          <p className="text-green-600 text-sm">Score ≥ 80</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-6 border border-yellow-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <span className="text-3xl font-bold text-yellow-700">{getGoodIdeas().length}</span>
+          </div>
+          <h3 className="text-lg font-semibold text-yellow-900 mb-1">Good Prospects</h3>
+          <p className="text-yellow-600 text-sm">Score 60-79</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <span className="text-3xl font-bold text-purple-700">
+              {items.length > 0 ? Math.round(items.reduce((acc, item) => acc + item.score, 0) / items.length) : 0}
+            </span>
+          </div>
+          <h3 className="text-lg font-semibold text-purple-900 mb-1">Avg Score</h3>
+          <p className="text-purple-600 text-sm">Overall quality</p>
+        </div>
+      </div>
+
+      {/* Recent Ideas */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Recent High-Value Ideas</h2>
+            <button
+              onClick={() => setActiveTab('ideas')}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+            >
+              View All →
+            </button>
+          </div>
+        </div>
+        <div className="p-6">
+          {getRecentIdeas().length > 0 ? (
+            <div className="space-y-4">
+              {getRecentIdeas().map((idea) => (
+                <div key={idea.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900">{idea.name}</h3>
+                    <p className="text-sm text-gray-600 mt-1">{idea.one_liner}</p>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                      idea.score >= 80 ? 'bg-green-100 text-green-800' :
+                      idea.score >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {idea.score}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <svg className="mx-auto h-16 w-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No ideas yet</h3>
+              <p className="text-gray-600">Start by running the data pipeline or validating new ideas.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return renderOverview()
+      case 'validator':
+        return <IdeaValidator />
+      case 'ideas':
+        return (
+          <div className="bg-white shadow-sm rounded-xl border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  SaaS Ideas ({items.length})
+                </h2>
+                <button
+                  onClick={fetchItems}
+                  disabled={loading}
+                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                  title="Refresh data"
+                >
+                  <svg
+                    className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <DataTable items={items} />
+          </div>
+        )
+      case 'jobs':
+        return <ScheduledJobs />
+      case 'functions':
+        return <EdgeFunctions />
+      default:
+        return renderOverview()
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-gray-200/50 px-6 py-3 flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header */}
+      <header className="sticky top-0 z-50 backdrop-blur-md bg-white/90 border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                SaaS Ideas Dashboard
-              </h1>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                  IdeaValidator
+                </h1>
+                <p className="text-sm text-gray-600 hidden sm:block">AI-Powered SaaS Discovery Platform</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <div className="hidden sm:block text-sm text-gray-600">
-                Welcome, <span className="font-medium text-gray-900">{user?.email?.split('@')[0]}</span>
+            
+            <div className="flex items-center space-x-4">
+              <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-600">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>Welcome, <span className="font-medium text-gray-900">{user?.email?.split('@')[0]}</span></span>
               </div>
               <button
                 onClick={signOut}
-                className="bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-700 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200"
+                className="bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-700 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 transition-all duration-200"
               >
                 <div className="flex items-center space-x-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,56 +251,52 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-8">
-          {process.env.NEXT_PUBLIC_SHOW_EDGE_FUNCTIONS === 'true' && <EdgeFunctions />}
-          
-          <ScheduledJobs />
-          
-          <IdeaValidator />
-          
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            </div>
-          ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <div className="text-red-800">Error: {error}</div>
-            </div>
-          ) : (
-            <div className="bg-white shadow-sm rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    SaaS Ideas ({items.length})
-                  </h2>
-                  <button
-                    onClick={fetchItems}
-                    disabled={loading}
-                    className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
-                    title="Refresh data"
-                  >
-                    <svg
-                      className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <DataTable items={items} />
-            </div>
-          )}
+      {/* Navigation Tabs */}
+      <nav className="bg-white border-b border-gray-200 sticky top-16 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8 overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.name}</span>
+              </button>
+            ))}
+          </div>
         </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {loading && activeTab === 'ideas' ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading SaaS ideas...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+            <div className="flex items-center">
+              <svg className="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <div>
+                <h3 className="text-lg font-medium text-red-900">Error Loading Data</h3>
+                <p className="text-red-700 mt-1">{error}</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          renderTabContent()
+        )}
       </main>
     </div>
   )

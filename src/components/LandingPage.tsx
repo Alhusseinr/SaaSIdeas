@@ -65,34 +65,36 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
   const pricingPlans = [
     {
       name: 'Starter',
-      price: 29,
+      price: 49,
       period: 'month',
       description: 'Perfect for individual entrepreneurs and side projects',
       features: [
-        '10 idea validations per month',
-        'Basic market analysis',
+        '25 idea validations per month',
+        'AI-powered market analysis',
         'Reddit data integration',
         'Email support',
         'Implementation prompts',
-        'Basic competitive analysis'
+        'Basic competitive analysis',
+        'Export to CSV'
       ],
       popular: false
     },
     {
       name: 'Pro',
-      price: 79,
+      price: 99,
       period: 'month',
       description: 'Ideal for serious builders and small teams',
       features: [
-        '50 idea validations per month',
-        'Advanced AI analysis',
+        '100 idea validations per month',
+        'Advanced AI analysis with GPT-4',
         'Reddit + Twitter integration',
-        'Priority support',
+        'Priority support & live chat',
         'Custom implementation plans',
         'Advanced competitive intelligence',
-        'Revenue modeling',
+        'Revenue modeling & pricing analysis',
         'API access',
-        'Export capabilities'
+        'Advanced export capabilities',
+        'Team collaboration (up to 3 users)'
       ],
       popular: true
     },
@@ -108,9 +110,11 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
         'Dedicated account manager',
         'Custom AI training',
         'Advanced analytics dashboard',
-        'Team collaboration tools',
+        'Team collaboration (unlimited users)',
         'Priority feature requests',
-        'Custom integrations'
+        'Custom integrations',
+        'SLA guarantee',
+        'On-premise deployment option'
       ],
       popular: false
     }
