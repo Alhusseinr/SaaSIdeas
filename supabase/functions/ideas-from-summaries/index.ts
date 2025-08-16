@@ -1,5 +1,5 @@
 // supabase/functions/ideas-from-summaries/index.ts
-// Enhanced SaaS idea generation with better deduplication and diversity
+// Enhanced pattern-based SaaS idea generation from cross-post analysis
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
@@ -7,15 +7,15 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 // Function version and configuration
-const FUNCTION_VERSION = "2.0.0";
-const LAST_UPDATED = "2025-01-14T23:30:00Z";
+const FUNCTION_VERSION = "3.0.0";
+const LAST_UPDATED = "2025-01-16T12:00:00Z";
 
 // Configuration
 const MODEL = "gpt-4o-mini";
 const DEFAULT_DAYS = 14;
-const DEFAULT_LIMIT = 200;
-const CHUNK_SIZE = 40; // Smaller chunks for better focus
-const SUMMARY_TRUNC = 150;
+const DEFAULT_LIMIT = 300;
+const CHUNK_SIZE = 80; // Larger chunks to identify cross-post patterns
+const SUMMARY_TRUNC = 200;
 const MAX_RETRIES = 3;
 const DEDUPE_LOOKBACK_DAYS = 60;
 const MIN_SCORE_THRESHOLD = 30; // Only keep ideas with score >= 30
@@ -52,32 +52,38 @@ function buildEnhancedPrompt(items: string[], existingIdeas: string[]): { system
   const system = `You are an innovative SaaS strategist and product visionary.
 
 CRITICAL REQUIREMENTS:
-1. Generate 3-7 DIVERSE and UNIQUE SaaS ideas
-2. Each idea must solve DIFFERENT problems and target DIFFERENT markets
-3. Avoid generic solutions - be specific and innovative
-4. Focus on high-value, niche opportunities
-5. Each idea should feel distinctly different from others
+1. Identify COMMON PATTERNS across multiple complaints (not individual post solutions)
+2. Generate 3-7 DIVERSE SaaS ideas that solve problems affecting MULTIPLE users
+3. Each idea should address similar pain points mentioned across DIFFERENT posts
+4. Focus on solutions that can serve many customers with the same underlying problem
+5. Prioritize B2B SaaS opportunities with clear revenue potential
+
+PATTERN IDENTIFICATION FOCUS:
+- Look for the SAME problem mentioned by different users/companies
+- Identify repeated workflow inefficiencies across industries
+- Find common integration or automation needs
+- Spot recurring compliance, reporting, or data management issues
+- Notice shared user experience frustrations
 
 SCORING CRITERIA (0-100):
-- Market Pain Intensity (0-25): How urgent/painful is the problem?
-- Market Size & Willingness to Pay (0-25): Revenue potential?
-- Defensibility & Moat (0-20): Can you build sustainable competitive advantage?
-- Time to MVP & Execution Feasibility (0-15): How quickly can this be built?
-- Uniqueness & Innovation (0-15): How differentiated is this solution?
+- Cross-Post Pattern Strength (0-30): How many posts mention similar problems?
+- Market Pain Intensity & Frequency (0-25): How urgent and widespread?
+- Market Size & Revenue Potential (0-20): Clear willingness to pay?
+- Solution Feasibility & Differentiation (0-15): Buildable competitive advantage?
+- Market Timing & Opportunity (0-10): Why now?
 
-AVOID THESE COMMON PATTERNS:
-- Generic "productivity tools" or "project management"
-- Vague "AI-powered" solutions without clear value
-- Simple notification or reminder apps
-- Basic dashboard or analytics tools
-- Generic "automation" platforms
+AVOID SINGLE-POST SOLUTIONS:
+- Ideas that only solve one person's specific problem
+- Highly customized or niche one-off solutions
+- Generic "productivity tools" without specific pain points
+- Solutions that don't scale across multiple customers
 
-FOCUS ON SPECIFIC NICHES:
-- Industry-specific problems
-- Underserved user segments  
-- Emerging technology opportunities
-- Cross-functional workflow gaps
-- Regulatory/compliance pain points
+FOCUS ON SCALABLE PATTERNS:
+- Industry-agnostic workflow problems
+- Cross-functional communication gaps
+- Data integration and automation needs
+- Compliance and reporting inefficiencies
+- User experience pain points affecting multiple segments
 
 ${existingIdeas.length > 0 ? `EXISTING IDEAS TO AVOID DUPLICATING:\n${existingIdeas.join('\n')}\n\nYour new ideas must be meaningfully different from these.\n` : ''}
 
@@ -87,22 +93,23 @@ Return STRICT JSON:
     {
       "score": 85,
       "name": "Specific Product Name",
-      "one_liner": "Clear value proposition in one sentence",
-      "target_user": "Specific user persona (e.g., 'Small dental practice owners')",
+      "one_liner": "Clear value proposition solving the common pattern",
+      "target_user": "Specific user persona experiencing this pattern",
       "core_features": ["Feature 1", "Feature 2", "Feature 3"],
       "why_now": "Why this opportunity exists now",
       "pricing_hint": "Pricing model suggestion",
-      "rationale": "Why this scores high - specific reasoning",
-      "representative_post_ids": [123, 456]
+      "rationale": "Why this scores high - specific reasoning about the pattern",
+      "representative_post_ids": [123, 456, 789],
+      "pattern_evidence": "Description of the common pattern across posts"
     }
   ]
 }`;
 
-  const user = `Analyze these complaint summaries and generate DIVERSE SaaS opportunities:
+  const user = `Analyze these complaint summaries and identify COMMON PATTERNS that could be solved by scalable SaaS solutions:
 
 ${items}
 
-Focus on finding DIFFERENT types of problems and solutions. Avoid creating similar ideas.`;
+Look for the SAME underlying problems mentioned across MULTIPLE different posts. Generate ideas that solve these recurring patterns, not individual one-off complaints.`;
 
   return { system, user };
 }
@@ -300,9 +307,10 @@ Deno.serve(async (req) => {
     const { data: runData, error: runError } = await supabase
       .from("saas_idea_runs")
       .insert({
-        platform,
+        platform: `${platform}_patterns`,
         period_days: days,
-        source_limit: limit
+        source_limit: limit,
+        notes: `Enhanced pattern-based generation from ${posts.length} posts`
       })
       .select("id, created_at")
       .single();

@@ -10,12 +10,14 @@ import IdeaValidator from './IdeaValidator'
 import SubscriptionPage from './SubscriptionPage'
 import ProblemOfTheDay from './ProblemOfTheDay'
 import TrendingProblems from './TrendingProblems'
+import SearchAndFilters, { FilterState } from './SearchAndFilters'
 
 type TabType = 'overview' | 'validator' | 'ideas' | 'jobs' | 'functions' | 'subscription'
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
   const [items, setItems] = useState<SaasIdeaItem[]>([])
+  const [filteredItems, setFilteredItems] = useState<SaasIdeaItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<TabType>('overview')
@@ -39,6 +41,7 @@ export default function Dashboard() {
         setError(error.message)
       } else {
         setItems(data || [])
+        setFilteredItems(data || [])
       }
     } catch (err) {
       setError('Failed to fetch data')
@@ -47,9 +50,132 @@ export default function Dashboard() {
     }
   }
 
-  const getTopScoreIdeas = () => items.filter(item => item.score >= 80)
-  const getGoodIdeas = () => items.filter(item => item.score >= 60 && item.score < 80)
-  const getRecentIdeas = () => items.slice(0, 5)
+  const getTopScoreIdeas = () => filteredItems.filter(item => item.score >= 80)
+
+  const applyFilters = (filters: FilterState) => {
+    let filtered = [...items]
+
+    // Search query filter
+    if (filters.searchQuery.trim()) {
+      const query = filters.searchQuery.toLowerCase()
+      filtered = filtered.filter(item => 
+        item.name.toLowerCase().includes(query) ||
+        item.one_liner?.toLowerCase().includes(query) ||
+        item.core_features?.some(feature => feature.toLowerCase().includes(query)) ||
+        item.required_skills?.some(skill => skill.toLowerCase().includes(query))
+      )
+    }
+
+    // Score range filter
+    filtered = filtered.filter(item => 
+      item.score >= filters.scoreRange[0] && item.score <= filters.scoreRange[1]
+    )
+
+    // Build time filter (convert months to weeks)
+    filtered = filtered.filter(item => {
+      const buildTimeWeeks = Math.round((item.development_timeline_months || 6) * 4.33)
+      return buildTimeWeeks >= filters.buildTimeRange[0] && buildTimeWeeks <= filters.buildTimeRange[1]
+    })
+
+    // Industry filter (basic keyword matching)
+    if (filters.industry !== 'all') {
+      filtered = filtered.filter(item => {
+        const content = `${item.name} ${item.one_liner} ${item.core_features?.join(' ')}`.toLowerCase()
+        switch (filters.industry) {
+          case 'fintech': return /fintech|finance|payment|banking|money|crypto|invest/.test(content)
+          case 'healthcare': return /health|medical|doctor|patient|medicine|wellness/.test(content)
+          case 'productivity': return /productiv|task|time|manage|organiz|workflow|efficiency/.test(content)
+          case 'ecommerce': return /ecommerce|shop|store|retail|sell|buy|marketplace/.test(content)
+          case 'marketing': return /market|advertis|campaign|social|brand|customer/.test(content)
+          case 'education': return /educat|learn|teach|student|course|school/.test(content)
+          case 'communication': return /chat|messag|email|communicat|social|connect/.test(content)
+          case 'automation': return /automat|workflow|process|integrat|api/.test(content)
+          case 'analytics': return /analytic|data|insight|report|dashboard|metric/.test(content)
+          case 'security': return /security|auth|encrypt|protect|privacy|safe/.test(content)
+          default: return true
+        }
+      })
+    }
+
+    // Product type filter (basic heuristics)
+    if (filters.productType !== 'all') {
+      filtered = filtered.filter(item => {
+        const content = `${item.name} ${item.one_liner} ${item.core_features?.join(' ')}`.toLowerCase()
+        switch (filters.productType) {
+          case 'saas': return /platform|service|cloud|subscription|dashboard/.test(content)
+          case 'webapp': return /web|app|browser|online|website/.test(content)
+          case 'mobileapp': return /mobile|app|ios|android|phone/.test(content)
+          case 'api': return /api|service|integration|webhook|endpoint/.test(content)
+          case 'chrome': return /extension|browser|chrome|plugin|addon/.test(content)
+          case 'desktop': return /desktop|software|application|install/.test(content)
+          case 'ai': return /ai|machine learning|nlp|intelligence|predict/.test(content)
+          default: return true
+        }
+      })
+    }
+
+    // Difficulty filter
+    if (filters.difficulty !== 'all') {
+      filtered = filtered.filter(item => {
+        const buildTimeMonths = item.development_timeline_months || 6
+        switch (filters.difficulty) {
+          case 'beginner': return buildTimeMonths <= 3
+          case 'intermediate': return buildTimeMonths > 3 && buildTimeMonths <= 8
+          case 'advanced': return buildTimeMonths > 8
+          default: return true
+        }
+      })
+    }
+
+    // Sort filtered results
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any
+      
+      switch (filters.sortBy) {
+        case 'score':
+          aValue = a.score
+          bValue = b.score
+          break
+        case 'development_timeline_months':
+          aValue = a.development_timeline_months || 6
+          bValue = b.development_timeline_months || 6
+          break
+        case 'founder_market_fit_score':
+          aValue = a.founder_market_fit_score || 0
+          bValue = b.founder_market_fit_score || 0
+          break
+        case 'technical_feasibility_score':
+          aValue = a.technical_feasibility_score || 0
+          bValue = b.technical_feasibility_score || 0
+          break
+        case 'created_at':
+          aValue = a.created_at ? new Date(a.created_at).getTime() : 0
+          bValue = b.created_at ? new Date(b.created_at).getTime() : 0
+          break
+        case 'name':
+          aValue = a.name.toLowerCase()
+          bValue = b.name.toLowerCase()
+          break
+        default:
+          aValue = a.score
+          bValue = b.score
+      }
+
+      if (filters.sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1
+      } else {
+        return aValue < bValue ? 1 : -1
+      }
+    })
+
+    setFilteredItems(filtered)
+  }
+
+  const handleSearchChange = (query: string) => {
+    // Search handled in applyFilters
+  }
+  const getGoodIdeas = () => filteredItems.filter(item => item.score >= 60 && item.score < 80)
+  const getRecentIdeas = () => filteredItems.slice(0, 5)
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: '📊' },
@@ -214,7 +340,12 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
-            <DataTable items={items} />
+            <SearchAndFilters 
+              onSearchChange={handleSearchChange}
+              onFiltersChange={applyFilters}
+              totalResults={filteredItems.length}
+            />
+            <DataTable items={filteredItems} />
           </div>
         )
       case 'subscription':

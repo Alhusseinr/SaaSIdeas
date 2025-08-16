@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getTodaysValidatedOpportunity, DailyIdeaData } from '@/lib/dailyIdea'
+import ScoreBreakdown from './ScoreBreakdown'
 
 interface TodaysOpportunityCardProps {
   onGetStarted: (planId?: string) => void
@@ -11,6 +12,7 @@ export default function TodaysOpportunityCard({ onGetStarted }: TodaysOpportunit
   const [todaysIdea, setTodaysIdea] = useState<DailyIdeaData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false)
 
   useEffect(() => {
     const fetchTodaysIdea = async () => {
@@ -128,9 +130,13 @@ export default function TodaysOpportunityCard({ onGetStarted }: TodaysOpportunit
               </div>
             </div>
           </div>
-          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-xl text-lg font-bold flex-shrink-0 ${getScoreColor(todaysIdea.score)}`}>
+          <button
+            onClick={() => setShowScoreBreakdown(true)}
+            className={`inline-flex items-center justify-center w-16 h-16 rounded-xl text-lg font-bold flex-shrink-0 hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer ${getScoreColor(todaysIdea.score)}`}
+            title="Click to see score breakdown"
+          >
             {todaysIdea.score}
-          </div>
+          </button>
         </div>
       </div>
 
@@ -205,6 +211,36 @@ export default function TodaysOpportunityCard({ onGetStarted }: TodaysOpportunit
           </div>
         </div>
       </div>
+
+      {/* Score Breakdown Modal */}
+      {showScoreBreakdown && todaysIdea && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center">
+                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl text-sm font-bold mr-3 ${getScoreColor(todaysIdea.score)}`}>
+                  {todaysIdea.score}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{todaysIdea.name}</h3>
+                  <p className="text-sm text-gray-600">Score breakdown and calculation details</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowScoreBreakdown(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+              <ScoreBreakdown idea={todaysIdea} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

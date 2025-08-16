@@ -4,7 +4,7 @@ import TodaysOpportunityCard from './TodaysOpportunityCard'
 
 export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: (planId?: string) => void, onSignIn?: () => void }) {
 
-  const features = [
+  const coreFeatures = [
     {
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -40,11 +40,44 @@ export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: 
       ),
       title: 'Implementation Guidance',
       description: 'Generate detailed technical specifications and business plans to turn ideas into reality.'
-    },
-    {
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+    }
+  ]
+
+  const phaseFeatures = {
+    phase1: [
+      {
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        ),
+        title: 'Real Source Posts',
+        description: 'View the actual Reddit and Twitter posts that inspired each opportunity. See real user complaints with links to originals.'
+      },
+      {
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        ),
+        title: 'Basic Market Analysis',
+        description: 'Essential market validation metrics and opportunity scoring for core idea assessment.'
+      },
+      {
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+        ),
+        title: 'Search & Filters',
+        description: 'Filter by industry, build time, difficulty level, and score ranges across all validated opportunities.'
+      }
+    ],
+    phase2: [
+      {
+        icon: (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
         </svg>
       ),
       title: 'Competitive Intelligence',
@@ -58,8 +91,47 @@ export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: 
       ),
       title: 'Revenue Modeling',
       description: 'AI-generated pricing strategies and revenue models based on market analysis and user willingness to pay.'
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      ),
+      title: 'Advanced Analytics',
+      description: 'Deep market opportunity analysis with TAM, SAM, and SOM breakdowns based on real demand indicators.'
+    }
+  ],
+  phase3: [
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      ),
+      title: 'API Access',
+      description: 'Full programmatic access to our opportunity database and analysis engine for custom integrations.'
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      title: 'Team Collaboration',
+      description: 'Advanced team features with shared workspaces, custom roles, and collaborative opportunity tracking.'
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+        </svg>
+      ),
+      title: 'White-Label Solutions',
+      description: 'Custom branding and deployment options for agencies, VCs, and enterprise clients.'
     }
   ]
+}
 
   const pricingPlans = [
     {
@@ -160,19 +232,37 @@ export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: 
               </div>
               <span className="text-xl font-bold text-gray-900">IdeaValidator</span>
             </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => onSignIn && onSignIn()}
-                className="text-gray-600 hover:text-gray-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => onGetStarted()}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
-              >
-                Get Started
-              </button>
+            <div className="flex items-center space-x-6">
+              {/* Navigation Links */}
+              <nav className="hidden md:flex items-center space-x-6">
+                <a
+                  href="#about"
+                  className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors"
+                >
+                  How It Works
+                </a>
+                <a
+                  href="#pricing"
+                  className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors"
+                >
+                  Pricing
+                </a>
+              </nav>
+              
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => onSignIn && onSignIn()}
+                  className="text-gray-600 hover:text-gray-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => onGetStarted()}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+                >
+                  Get Started
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -191,7 +281,10 @@ export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: 
               </h1>
               <p className="text-xl text-gray-600 mb-8 leading-relaxed">
                 Stop guessing what to build. Our AI analyzes millions of real user complaints and market signals 
-                to surface validated SaaS opportunities with proven demand.
+                to surface validated SaaS opportunities with proven demand. We transform genuine pain points from 
+                Reddit, Twitter, and other platforms into actionable business opportunities, complete with market 
+                analysis, competitive intelligence, and implementation roadmaps. Skip months of market research 
+                and start building solutions that people are already asking for.
               </p>
               
               {/* Key Benefits */}
@@ -259,20 +352,20 @@ export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: 
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Core Features Section */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Everything You Need to Validate and Build
+              Core Platform Features
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              From market research to implementation planning, we provide the complete toolkit for SaaS entrepreneurs.
+              The essential tools every SaaS entrepreneur needs to discover, validate, and build successful products.
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {coreFeatures.map((feature, index) => (
               <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-100 to-purple-100 rounded-lg flex items-center justify-center text-blue-600 mb-4">
                   {feature.icon}
@@ -281,6 +374,320 @@ export default function LandingPage({ onGetStarted, onSignIn }: { onGetStarted: 
                 <p className="text-gray-600 leading-relaxed">{feature.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Phased Features Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Feature Roadmap: Built for Growth
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Our platform evolves with your needs. Start with essential validation tools and scale up to advanced analytics and enterprise features.
+            </p>
+          </div>
+
+          {/* Phase 1 - Foundation */}
+          <div className="mb-16">
+            <div className="text-center mb-10">
+              <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold mb-4">
+                Phase 1: Foundation
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">Essential Validation & Discovery</h3>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Everything you need to start finding and validating SaaS opportunities from real user data.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {phaseFeatures.phase1.map((feature, index) => (
+                <div key={index} className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white mb-4">
+                    {feature.icon}
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h4>
+                  <p className="text-gray-600 text-sm">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Phase 2 - Growth */}
+          <div className="mb-16">
+            <div className="text-center mb-10">
+              <div className="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-800 rounded-full text-sm font-semibold mb-4">
+                Phase 2: Growth
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">Advanced Analysis & Intelligence</h3>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Deep market insights, competitive analysis, and revenue modeling for serious builders.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {phaseFeatures.phase2.map((feature, index) => (
+                <div key={index} className="bg-purple-50 p-6 rounded-xl border border-purple-200">
+                  <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center text-white mb-4">
+                    {feature.icon}
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h4>
+                  <p className="text-gray-600 text-sm">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Phase 3 - Scale */}
+          <div>
+            <div className="text-center mb-10">
+              <div className="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-semibold mb-4">
+                Phase 3: Scale
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">Enterprise & Integration</h3>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Advanced collaboration, API access, and white-label solutions for teams and enterprises.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {phaseFeatures.phase3.map((feature, index) => (
+                <div key={index} className="bg-green-50 p-6 rounded-xl border border-green-200">
+                  <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center text-white mb-4">
+                    {feature.icon}
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h4>
+                  <p className="text-gray-600 text-sm">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* About Section */}
+      <section id="about" className="py-20 bg-gradient-to-br from-gray-50 to-blue-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              How It Works: From Reddit Complaints to SaaS Success
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Our AI-powered platform transforms real user frustrations into validated business opportunities. 
+              Here's the complete process behind finding your next SaaS idea.
+            </p>
+          </div>
+
+          {/* Process Flow */}
+          <div className="mb-20">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">1. Data Collection</h3>
+                <p className="text-sm text-gray-600">Monitor Reddit, Twitter/X, and other platforms for user complaints and pain points</p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">2. AI Analysis</h3>
+                <p className="text-sm text-gray-600">Advanced AI processes complaints to identify software-solvable problems and market gaps</p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">3. Validation</h3>
+                <p className="text-sm text-gray-600">Generate validation scores, market analysis, and feasibility assessments for each opportunity</p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">4. Actionable Insights</h3>
+                <p className="text-sm text-gray-600">Receive detailed implementation plans, cost estimates, and go-to-market strategies</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Features */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
+            {/* Left Column - Core Features */}
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">🎯 Core Platform Features</h3>
+              <div className="space-y-6">
+                <div className="flex items-start">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Real Source Posts</h4>
+                    <p className="text-gray-600 text-sm">View the actual Reddit and Twitter posts that inspired each opportunity. See real user complaints with links to originals for credibility.</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Transparent Scoring</h4>
+                    <p className="text-gray-600 text-sm">Click "How is this calculated?" on any score to see the exact methodology, weighted factors, and data sources behind our AI analysis.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Advanced Search & Filters</h4>
+                    <p className="text-gray-600 text-sm">Filter by industry, build time, difficulty level, product type, and score ranges. Search across 200+ validated opportunities.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                    <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Market Opportunity Analysis</h4>
+                    <p className="text-gray-600 text-sm">Get realistic market size estimates based on user demand indicators, not fictional revenue projections. See TAM, SAM, and SOM breakdowns.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Analysis Features */}
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">📊 Deep Analysis & Guidance</h3>
+              <div className="space-y-6">
+                <div className="flex items-start">
+                  <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Transparent Cost Breakdown</h4>
+                    <p className="text-gray-600 text-sm">See detailed investment estimates with methodology: Development timeline × $8K/month + infrastructure costs. Includes bootstrap-friendly alternatives.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Competitive Intelligence</h4>
+                    <p className="text-gray-600 text-sm">Discover existing solutions, market gaps, and differentiation opportunities. Understand what competitors are missing.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                    <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Build Time Estimates</h4>
+                    <p className="text-gray-600 text-sm">Realistic development timelines in weeks, not months. Based on feature complexity, technical requirements, and team composition.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                    <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">SaaS-Only Focus</h4>
+                    <p className="text-gray-600 text-sm">Intelligent filtering removes physical products, restaurants, and non-software ideas. Every opportunity is digitally implementable.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Data Sources & Quality */}
+          <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">📡 Data Sources & Quality Standards</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-white font-bold text-lg">R</span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-2">Reddit Integration</h4>
+                <p className="text-sm text-gray-600">Monitor 10+ business subreddits for real user frustrations. OAuth2 authenticated API access with rate limiting.</p>
+              </div>
+              <div className="text-center">
+                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-white font-bold text-lg">𝕏</span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-2">Twitter/X API v2</h4>
+                <p className="text-sm text-gray-600">Track startup conversations and pain points. Intelligent quota management for all API tiers including free tier limits.</p>
+              </div>
+              <div className="text-center">
+                <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                  </svg>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-2">AI Processing</h4>
+                <p className="text-sm text-gray-600">Advanced sentiment analysis and opportunity detection. Filters out physical products and focuses on software-solvable problems.</p>
+              </div>
+            </div>
+            
+            <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h5 className="font-semibold text-blue-900 mb-2">Quality Guarantees:</h5>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-blue-800">
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Real user posts with source links
+                </div>
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  SaaS/software opportunities only
+                </div>
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Transparent scoring methodology
+                </div>
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Daily updates with fresh opportunities
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { SaasIdeaItem } from "@/lib/supabase";
 import { generateEnhancedAnalysis } from "@/lib/enhancedAnalysis";
 import EnhancedAnalysis from "./EnhancedAnalysis";
+import ScoreBreakdown from "./ScoreBreakdown";
 
 interface DataTableProps {
   items: SaasIdeaItem[];
@@ -17,6 +18,7 @@ export default function DataTable({ items }: DataTableProps) {
   const [showPrompt, setShowPrompt] = useState(false);
   const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({});
   const [enhancedItem, setEnhancedItem] = useState<SaasIdeaItem | null>(null);
+  const [scoreBreakdownItem, setScoreBreakdownItem] = useState<SaasIdeaItem | null>(null);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -109,7 +111,6 @@ ${
 
 **Market Opportunity:** ${item.why_now || "Not specified"}
 
-**Pricing Strategy:** ${item.pricing_hint || "Not specified"}
 
 **Business Rationale:** ${item.rationale || "Not specified"}
 
@@ -221,9 +222,13 @@ Focus on being specific and actionable. I want to start building this as soon as
                 >
                   {/* Score */}
                   <div className="col-span-1">
-                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl text-sm font-bold shadow-sm ${getScoreColor(item.score)}`}>
+                    <button
+                      onClick={() => setScoreBreakdownItem(item)}
+                      className={`inline-flex items-center justify-center w-12 h-12 rounded-xl text-sm font-bold shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105 cursor-pointer ${getScoreColor(item.score)}`}
+                      title="Click to see score breakdown"
+                    >
                       {item.score}
-                    </div>
+                    </button>
                   </div>
 
                   {/* Idea Name */}
@@ -245,6 +250,14 @@ Focus on being specific and actionable. I want to start building this as soon as
                           {item.core_features && item.core_features.length > 0 && (
                             <span className="text-xs text-gray-500">
                               {item.core_features.length} features
+                            </span>
+                          )}
+                          {item.representative_post_ids && item.representative_post_ids.length > 1 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-100 text-green-800">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              {item.representative_post_ids.length} posts
                             </span>
                           )}
                         </div>
@@ -370,11 +383,23 @@ Focus on being specific and actionable. I want to start building this as soon as
                           {item.core_features.length} features
                         </span>
                       )}
+                      {item.representative_post_ids && item.representative_post_ids.length > 1 && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-100 text-green-800 flex-shrink-0">
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {item.representative_post_ids.length} posts
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg text-xs font-bold shadow-sm ${getScoreColor(item.score)} flex-shrink-0`}>
+                  <button
+                    onClick={() => setScoreBreakdownItem(item)}
+                    className={`inline-flex items-center justify-center w-10 h-10 rounded-lg text-xs font-bold shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105 cursor-pointer ${getScoreColor(item.score)} flex-shrink-0`}
+                    title="Click to see score breakdown"
+                  >
                     {item.score}
-                  </div>
+                  </button>
                 </div>
 
                 {/* Card Content */}
@@ -627,31 +652,6 @@ Focus on being specific and actionable. I want to start building this as soon as
                   </div>
                 )}
 
-                {selectedItem.pricing_hint && (
-                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <button
-                      onClick={() => toggleSection('pricing')}
-                      className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center">
-                        <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                        </svg>
-                        <span className="font-medium text-gray-900">Pricing Strategy</span>
-                      </div>
-                      <svg className={`w-5 h-5 text-gray-400 transition-transform ${expandedSections.pricing ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {expandedSections.pricing && (
-                      <div className="px-4 pb-4">
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                          {selectedItem.pricing_hint}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {selectedItem.why_now && (
                   <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -663,7 +663,7 @@ Focus on being specific and actionable. I want to start building this as soon as
                         <svg className="w-5 h-5 text-amber-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span className="font-medium text-gray-900">Market Timing</span>
+                        <span className="font-medium text-gray-900">Why Now?</span>
                       </div>
                       <svg className={`w-5 h-5 text-gray-400 transition-transform ${expandedSections.timing ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -842,6 +842,36 @@ Focus on being specific and actionable. I want to start building this as soon as
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Score Breakdown Modal */}
+      {scoreBreakdownItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center">
+                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl text-sm font-bold mr-3 ${getScoreColor(scoreBreakdownItem.score)}`}>
+                  {scoreBreakdownItem.score}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{scoreBreakdownItem.name}</h3>
+                  <p className="text-sm text-gray-600">Score breakdown and calculation details</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setScoreBreakdownItem(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+              <ScoreBreakdown idea={scoreBreakdownItem} />
             </div>
           </div>
         </div>
