@@ -62,9 +62,9 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-6">
+    <div>
       {/* Search Bar */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="px-6 pt-6">
         <div className="flex items-center space-x-4">
           <div className="flex-1 relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -99,16 +99,12 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
               </span>
             )}
           </button>
-          
-          <div className="text-sm text-gray-600">
-            {totalResults.toLocaleString()} opportunities
-          </div>
         </div>
       </div>
 
       {/* Advanced Filters */}
       {isExpanded && (
-        <div className="p-4 bg-gray-50 border-t border-gray-200">
+        <div className="m-6 p-6 rounded-lg bg-gray-50 border border-gray-200 shadow">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             {/* Score Range */}
             <div>

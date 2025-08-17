@@ -57,6 +57,7 @@ CRITICAL REQUIREMENTS:
 3. Each idea should address similar pain points mentioned across DIFFERENT posts
 4. Focus on solutions that can serve many customers with the same underlying problem
 5. Prioritize B2B SaaS opportunities with clear revenue potential
+6. Analyze market landscape: identify if similar solutions exist and what gaps the new idea could fill
 
 PATTERN IDENTIFICATION FOCUS:
 - Look for the SAME problem mentioned by different users/companies
@@ -100,7 +101,10 @@ Return STRICT JSON:
       "pricing_hint": "Pricing model suggestion",
       "rationale": "Why this scores high - specific reasoning about the pattern",
       "representative_post_ids": [123, 456, 789],
-      "pattern_evidence": "Description of the common pattern across posts"
+      "pattern_evidence": "Description of the common pattern across posts",
+      "similar_to": "List of existing similar products or solutions in the market",
+      "gaps_filled": "Specific gaps or limitations in existing solutions that this idea addresses",
+      "does_not_exist": "Explanation of how this idea differs from or improves upon existing solutions"
     }
   ]
 }`;
@@ -364,22 +368,31 @@ Deno.serve(async (req) => {
     }
 
     // Prepare ideas for insertion
-    const preparedIdeas = allIdeas.map(idea => ({
-      run_id: runId,
-      name: String(idea.name || "Untitled Idea"),
-      name_norm: normalizeName(idea.name || ""),
-      score: Math.min(100, Math.max(0, Math.round(Number(idea.score) || 0))),
-      one_liner: idea.one_liner ? String(idea.one_liner) : null,
-      target_user: idea.target_user ? String(idea.target_user) : null,
-      core_features: Array.isArray(idea.core_features) ? idea.core_features.map(String) : [],
-      why_now: idea.why_now ? String(idea.why_now) : null,
-      pricing_hint: idea.pricing_hint ? String(idea.pricing_hint) : null,
-      rationale: idea.rationale ? String(idea.rationale) : null,
-      representative_post_ids: Array.isArray(idea.representative_post_ids) 
+    const preparedIdeas = allIdeas.map(idea => {
+      const postIds = Array.isArray(idea.representative_post_ids) 
         ? idea.representative_post_ids.filter(id => Number.isInteger(Number(id))).map(Number)
-        : [],
-      payload: idea
-    }));
+        : [];
+      
+      return {
+        run_id: runId,
+        name: String(idea.name || "Untitled Idea"),
+        name_norm: normalizeName(idea.name || ""),
+        score: Math.min(100, Math.max(0, Math.round(Number(idea.score) || 0))),
+        one_liner: idea.one_liner ? String(idea.one_liner) : null,
+        target_user: idea.target_user ? String(idea.target_user) : null,
+        core_features: Array.isArray(idea.core_features) ? idea.core_features.map(String) : [],
+        why_now: idea.why_now ? String(idea.why_now) : null,
+        pricing_hint: idea.pricing_hint ? String(idea.pricing_hint) : null,
+        rationale: idea.rationale ? String(idea.rationale) : null,
+        representative_post_ids: postIds,
+        posts_in_common: postIds.length, // Number of posts that support this idea
+        pattern_evidence: idea.pattern_evidence ? String(idea.pattern_evidence) : null,
+        similar_to: idea.similar_to ? String(idea.similar_to) : null,
+        gaps_filled: idea.gaps_filled ? String(idea.gaps_filled) : null,
+        does_not_exist: idea.does_not_exist ? String(idea.does_not_exist) : null,
+        payload: idea
+      };
+    });
 
     // Insert ideas
     let insertedCount = 0;
@@ -425,7 +438,12 @@ Deno.serve(async (req) => {
       sample_ideas: preparedIdeas.slice(0, 5).map(idea => ({
         name: idea.name,
         score: idea.score,
-        target_user: idea.target_user
+        target_user: idea.target_user,
+        posts_in_common: idea.posts_in_common,
+        pattern_evidence: idea.pattern_evidence?.slice(0, 100) + "..." || null,
+        similar_to: idea.similar_to?.slice(0, 100) + "..." || null,
+        gaps_filled: idea.gaps_filled?.slice(0, 100) + "..." || null,
+        does_not_exist: idea.does_not_exist?.slice(0, 100) + "..." || null
       }))
     };
 

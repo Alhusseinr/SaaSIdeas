@@ -96,6 +96,34 @@ interface EnrichJob extends BaseJob {
   };
 }
 
+interface SummaryJob extends BaseJob {
+  progress?: {
+    current_step: string;
+    total_steps: number;
+    completed_steps: number;
+    posts_processed: number;
+    posts_total: number;
+    current_batch: number;
+    total_batches: number;
+    posts_success: number;
+    posts_failed: number;
+  };
+}
+
+interface IdeasJob extends BaseJob {
+  progress?: {
+    current_step: string;
+    total_steps: number;
+    completed_steps: number;
+    summaries_processed: number;
+    summaries_total: number;
+    current_chunk: number;
+    total_chunks: number;
+    ideas_generated: number;
+    ideas_inserted: number;
+  };
+}
+
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -104,7 +132,7 @@ function corsHeaders() {
   };
 }
 
-async function getJob(jobId: string): Promise<{ job: BaseJob, type: 'ingest' | 'enrich' } | null> {
+async function getJob(jobId: string): Promise<{ job: BaseJob, type: 'ingest' | 'enrich' | 'summary' | 'ideas' } | null> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase credentials");
   }
@@ -112,8 +140,22 @@ async function getJob(jobId: string): Promise<{ job: BaseJob, type: 'ingest' | '
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   
   // Determine job type from job ID prefix
-  const jobType = jobId.startsWith('enrich_') ? 'enrich' : 'ingest';
-  const tableName = jobType === 'enrich' ? 'enrich_jobs' : 'ingest_jobs';
+  let jobType: 'ingest' | 'enrich' | 'summary' | 'ideas';
+  let tableName: string;
+  
+  if (jobId.startsWith('enrich_')) {
+    jobType = 'enrich';
+    tableName = 'enrich_jobs';
+  } else if (jobId.startsWith('summary_')) {
+    jobType = 'summary';
+    tableName = 'summary_jobs';
+  } else if (jobId.startsWith('ideas_')) {
+    jobType = 'ideas';
+    tableName = 'ideas_jobs';
+  } else {
+    jobType = 'ingest';
+    tableName = 'ingest_jobs';
+  }
   
   console.log(`Looking up job ${jobId} in table ${tableName} (type: ${jobType})`);
   
@@ -151,7 +193,7 @@ async function getJob(jobId: string): Promise<{ job: BaseJob, type: 'ingest' | '
   };
 }
 
-async function listRecentJobs(limit: number = 10, jobType?: 'ingest' | 'enrich'): Promise<{ jobs: BaseJob[], type: string }[]> {
+async function listRecentJobs(limit: number = 10, jobType?: 'ingest' | 'enrich' | 'summary' | 'ideas'): Promise<{ jobs: BaseJob[], type: string }[]> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase credentials");
   }
@@ -197,6 +239,58 @@ async function listRecentJobs(limit: number = 10, jobType?: 'ingest' | 'enrich')
       allJobs.push({
         type: 'enrich',
         jobs: enrichData.map(item => ({
+          id: item.id,
+          status: item.status,
+          created_at: item.created_at,
+          started_at: item.started_at,
+          completed_at: item.completed_at,
+          progress: item.progress,
+          result: item.result,
+          error: item.error,
+          parameters: item.parameters
+        }))
+      });
+    }
+  }
+
+  // Fetch summary jobs if not specified or if specified
+  if (!jobType || jobType === 'summary') {
+    const { data: summaryData, error: summaryError } = await supabase
+      .from("summary_jobs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+      
+    if (!summaryError && summaryData) {
+      allJobs.push({
+        type: 'summary',
+        jobs: summaryData.map(item => ({
+          id: item.id,
+          status: item.status,
+          created_at: item.created_at,
+          started_at: item.started_at,
+          completed_at: item.completed_at,
+          progress: item.progress,
+          result: item.result,
+          error: item.error,
+          parameters: item.parameters
+        }))
+      });
+    }
+  }
+
+  // Fetch ideas jobs if not specified or if specified
+  if (!jobType || jobType === 'ideas') {
+    const { data: ideasData, error: ideasError } = await supabase
+      .from("ideas_jobs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+      
+    if (!ideasError && ideasData) {
+      allJobs.push({
+        type: 'ideas',
+        jobs: ideasData.map(item => ({
           id: item.id,
           status: item.status,
           created_at: item.created_at,
@@ -272,7 +366,7 @@ Deno.serve(async (req) => {
     }
 
     const jobId = url.searchParams.get("job_id") || url.searchParams.get("id");
-    const jobTypeParam = url.searchParams.get("type") as 'ingest' | 'enrich' | null;
+    const jobTypeParam = url.searchParams.get("type") as 'ingest' | 'enrich' | 'summary' | 'ideas' | null;
     
     // If no job_id provided, return recent jobs list
     if (!jobId) {
