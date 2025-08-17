@@ -1,100 +1,7 @@
-// Enhanced ingest function with Reddit and Twitter/X support
-import { createClient } from "npm:@supabase/supabase-js@2.39.3";
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+// Reddit platform ingest function - simplified and self-contained for Edge Functions
 const REDDIT_CLIENT_ID = Deno.env.get("REDDIT_CLIENT_ID");
 const REDDIT_CLIENT_SECRET = Deno.env.get("REDDIT_CLIENT_SECRET");
-const USER_AGENT = Deno.env.get("REDDIT_USER_AGENT") ?? "complaint-scanner/0.1";
-
-// Twitter/X API credentials
-const TWITTER_BEARER_TOKEN = Deno.env.get("TWITTER_BEARER_TOKEN");
-const TWITTER_API_TIER = Deno.env.get("TWITTER_API_TIER") || "free"; // free, basic, pro
-
-// Function version and last updated timestamp
-const FUNCTION_VERSION = "3.0.0";
-const LAST_UPDATED = "2025-01-15T12:00:00Z";
-
-// Enhanced search phrases
-const phrases = [
-  "annoying", "frustrated", "i hate", "wish there was", "why is it so hard",
-  "broken", "useless", "terrible", "nightmare", "pain in the ass",
-  "doesn't work", "so slow", "buggy", "awful", "worst", "horrible"
-];
-
-// Priority subreddit list - optimized for Supabase Pro execution limits
-const subreddits = [
-  // Core Business & SaaS Communities (highest priority)
-  "smallbusiness", "Entrepreneur", "startups", "SaaS", "freelance", "ecommerce", 
-  "business", "sidehustle", "solopreneur", "digitalnomad",
-  
-  // Technology & Development (high complaint volume)
-  "programming", "webdev", "devops", "sysadmin", "learnprogramming",
-  "ITCareerQuestions", "cscareerquestions", "aws", "selfhosted",
-  
-  // Productivity & Workflow (common pain points)
-  "productivity", "getorganized", "automation", "projectmanagement",
-  "NotionSo", "todoist", "GTD", "organization",
-  
-  // Finance & Operations (business needs)
-  "accounting", "bookkeeping", "personalfinance", "customerservice",
-  "taxes", "financialindependence", "investing",
-  
-  // General Frustration Sources (rich complaint data)
-  "mildlyinfuriating", "antiwork", "jobs", "work", "firstworldproblems"
-];
-
-// Extended subreddit list for batch processing (when time allows)
-const extendedSubreddits = [
-  ...subreddits, // Include priority subreddits first
-  
-  // Additional communities
-  "marketing", "remotework", "consulting", "ITCareerQuestions", "cscareerquestions",
-  "aws", "selfhosted", "NotionSo", "todoist", "GTD", "organization",
-  "taxes", "financialindependence", "investing", "retail", "sales", "logistics",
-  "medicine", "nursing", "pharmacy", "dentistry", "mentalhealth", "therapy",
-  "Teachers", "education", "homeschool", "students", "teaching",
-  "graphic_design", "webdesign", "photography", "writing", "copywriting",
-  "realestate", "landlord", "construction", "humanresources", "management",
-  "fitness", "travel", "firstworldproblems", "lifehacks", "linux", "excel"
-];
-
-// Twitter search hashtags and accounts for business/startup content
-const twitterHashtags = [
-  "#startup", "#SaaS", "#entrepreneur", "#smallbusiness", "#productivity",
-  "#freelance", "#webdev", "#marketing", "#ecommerce", "#digitalnomad"
-];
-
-const twitterAccounts = [
-  "IndieHackers", "ProductHunt", "ycombinator", "VentureHacks", "Patio11",
-  "paulg", "pmarca", "garyvee", "naval", "dhh"
-];
-
-// Twitter API tier limits
-const TWITTER_LIMITS = {
-  free: { monthly_posts: 100, daily_posts: 3, queries_per_day: 1 },
-  basic: { monthly_posts: 200000, daily_posts: 6700, queries_per_day: 20 },
-  pro: { monthly_posts: 500000, daily_posts: 16700, queries_per_day: 50 }
-};
-
-// Physical product keywords to filter out (focus on SaaS/software only)
-const physicalProductKeywords = [
-  'shipping', 'delivery', 'warehouse', 'inventory', 'manufacturing', 'factory',
-  'physical product', 'printed', 'printing', 'packaging', 'retail store',
-  'brick and mortar', 'restaurant', 'food', 'kitchen', 'clothing', 'apparel',
-  'jewelry', 'furniture', 'hardware', 'device', 'gadget', 'machine',
-  'equipment', 'vehicle', 'car', 'truck', 'real estate', 'property',
-  'construction', 'building', 'plumbing', 'electrical', 'hvac',
-  'cleaning service', 'lawn care', 'landscaping', 'moving', 'storage unit'
-];
-
-// SaaS/Software positive keywords
-const softwareKeywords = [
-  'app', 'software', 'platform', 'dashboard', 'api', 'saas', 'web',
-  'mobile', 'automation', 'integration', 'analytics', 'tool',
-  'system', 'service', 'online', 'digital', 'cloud', 'database',
-  'algorithm', 'ai', 'machine learning', 'workflow', 'crm', 'cms'
-];
+const USER_AGENT = "complaint-scanner/0.1";
 
 interface PostData {
   platform: string;
@@ -112,34 +19,8 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key"
   };
-}
-
-function isSoftwareFocused(title: string, body: string): boolean {
-  const content = `${title} ${body}`.toLowerCase();
-  
-  // Strong physical product indicators - immediate filter out
-  const hasPhysicalKeywords = physicalProductKeywords.some(keyword => 
-    content.includes(keyword.toLowerCase())
-  );
-  
-  if (hasPhysicalKeywords) {
-    return false;
-  }
-  
-  // Check for software/digital indicators
-  const hasSoftwareKeywords = softwareKeywords.some(keyword => 
-    content.includes(keyword.toLowerCase())
-  );
-  
-  // Additional heuristics for software focus
-  const hasUrlsOrTech = /\b(\.com|\.net|\.io|github|api|webhook|json|xml|sql|database|server|cloud|code|programming|developer|tech|digital)\b/i.test(content);
-  const hasProductivityTerms = /\b(productivity|efficiency|automate|streamline|organize|manage|track|analyze|report|dashboard)\b/i.test(content);
-  const hasBusinessTerms = /\b(crm|erp|saas|subscription|recurring|billing|invoice|payment|customer|client|user|account)\b/i.test(content);
-  
-  // Return true if we have software keywords OR multiple supporting indicators
-  return hasSoftwareKeywords || (hasUrlsOrTech && hasProductivityTerms) || (hasBusinessTerms && hasProductivityTerms);
 }
 
 async function makeHash(platform: string, postId: string, text: string, createdAt: string): Promise<string> {
@@ -150,6 +31,26 @@ async function makeHash(platform: string, postId: string, text: string, createdA
   return Array.from(new Uint8Array(hashBuffer))
     .map(b => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isSoftwareFocused(title: string, body: string): boolean {
+  const content = `${title} ${body}`.toLowerCase();
+  
+  // Filter out physical products
+  const physicalKeywords = ['shipping', 'delivery', 'restaurant', 'food', 'clothing', 'furniture', 'hardware'];
+  if (physicalKeywords.some(keyword => content.includes(keyword))) {
+    return false;
+  }
+  
+  // Look for software indicators
+  const softwareKeywords = ['app', 'software', 'platform', 'api', 'saas', 'web', 'tool', 'system'];
+  const techTerms = /\b(code|programming|developer|tech|digital|startup|business|productivity|crm)\b/i.test(content);
+  
+  return softwareKeywords.some(keyword => content.includes(keyword)) || techTerms;
 }
 
 async function getRedditToken(): Promise<string> {
@@ -174,133 +75,123 @@ async function getRedditToken(): Promise<string> {
   return data.access_token;
 }
 
-async function fetchTwitterPosts(query: string, maxResults: number = 10): Promise<{posts: PostData[], filtered: number}> {
-  if (!TWITTER_BEARER_TOKEN) {
-    console.warn("Twitter Bearer Token not configured, skipping Twitter ingestion");
-    return { posts: [], filtered: 0 };
+async function fetchRedditPosts(maxPosts: number = 30): Promise<{posts: PostData[], filtered: number}> {
+  const posts: PostData[] = [];
+  const nowISO = new Date().toISOString();
+  let filteredCount = 0;
+
+  if (!REDDIT_CLIENT_ID || !REDDIT_CLIENT_SECRET) {
+    throw new Error("Reddit credentials not configured");
   }
 
-  try {
-    const url = new URL("https://api.twitter.com/2/tweets/search/recent");
-    url.searchParams.set("query", `${query} -is:retweet lang:en`);
-    url.searchParams.set("max_results", String(Math.min(maxResults, 100)));
-    url.searchParams.set("tweet.fields", "created_at,author_id,public_metrics,context_annotations");
-    url.searchParams.set("user.fields", "username");
-    url.searchParams.set("expansions", "author_id");
-
-    const response = await fetch(url.toString(), {
-      headers: {
-        "Authorization": `Bearer ${TWITTER_BEARER_TOKEN}`,
-        "Content-Type": "application/json"
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.warn(`Twitter API error: ${response.status} - ${errorText}`);
-      return { posts: [], filtered: 0 };
-    }
-
-    const data = await response.json();
-    const tweets = data.data || [];
-    const users = data.includes?.users || [];
+  // Complete subreddit list from original (priority subreddits)
+  const subreddits = [
+    // Core Business & SaaS Communities (highest priority)
+    "smallbusiness", "Entrepreneur", "startups", "SaaS", "freelance", "ecommerce", 
+    "business", "sidehustle", "solopreneur", "digitalnomad",
     
-    const posts: PostData[] = [];
-    const nowISO = new Date().toISOString();
-    let filteredCount = 0;
+    // Technology & Development (high complaint volume)
+    "programming", "webdev", "devops", "sysadmin", "learnprogramming",
+    "ITCareerQuestions", "cscareerquestions", "aws", "selfhosted",
+    
+    // Productivity & Workflow (common pain points)
+    "productivity", "getorganized", "automation", "projectmanagement",
+    "NotionSo", "todoist", "GTD", "organization",
+    
+    // Finance & Operations (business needs)
+    "accounting", "bookkeeping", "personalfinance", "customerservice",
+    "taxes", "financialindependence", "investing",
+    
+    // General Frustration Sources (rich complaint data)
+    "mildlyinfuriating", "antiwork", "jobs", "work", "firstworldproblems"
+  ];
 
-    for (const tweet of tweets) {
-      const author = users.find((u: any) => u.id === tweet.author_id);
-      const tweetText = tweet.text || "";
-      
-      // Filter out physical product tweets - focus on SaaS/software only
-      if (!isSoftwareFocused("", tweetText)) {
-        filteredCount++;
-        continue;
-      }
-      
-      const createdAt = tweet.created_at ? new Date(tweet.created_at).toISOString() : nowISO;
-      const hash = await makeHash("twitter", tweet.id, tweetText, createdAt);
+  // Complete phrase list from original
+  const phrases = [
+    "annoying", "frustrated", "i hate", "wish there was", "why is it so hard",
+    "broken", "useless", "terrible", "nightmare", "pain in the ass",
+    "doesn't work", "so slow", "buggy", "awful", "worst", "horrible"
+  ];
 
-      posts.push({
-        platform: "twitter",
-        platform_post_id: String(tweet.id),
-        author: author?.username || null,
-        url: `https://twitter.com/i/status/${tweet.id}`,
-        created_at: createdAt,
-        fetched_at: nowISO,
-        title: null,
-        body: tweetText,
-        hash: hash
-      });
-    }
-
-    return { posts, filtered: filteredCount };
-  } catch (error) {
-    console.error(`Error fetching Twitter posts for query "${query}":`, error);
-    return { posts: [], filtered: 0 };
-  }
-}
-
-async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function getTwitterQuotaUsage(supabase: any): Promise<{ daily: number, monthly: number }> {
   try {
-    // Get today's usage
-    const today = new Date().toISOString().split('T')[0];
-    const { data: dailyData } = await supabase
-      .from("posts")
-      .select("id", { count: "exact" })
-      .eq("platform", "twitter")
-      .gte("fetched_at", `${today}T00:00:00Z`);
+    console.log("Getting Reddit token...");
+    const accessToken = await getRedditToken();
+    console.log("Reddit token obtained successfully");
 
-    // Get this month's usage
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    const { data: monthlyData } = await supabase
-      .from("posts")
-      .select("id", { count: "exact" })
-      .eq("platform", "twitter")
-      .gte("fetched_at", monthStart);
+    // Use more subreddits and phrases to match original behavior
+    const selectedSubreddits = subreddits.slice(0, Math.min(15, subreddits.length));
+    const selectedPhrases = phrases.slice(0, Math.min(8, phrases.length));
 
-    return {
-      daily: dailyData?.length || 0,
-      monthly: monthlyData?.length || 0
-    };
+    for (const subreddit of selectedSubreddits) {
+      for (const phrase of selectedPhrases) {
+        try {
+          const url = `https://oauth.reddit.com/r/${subreddit}/search?limit=10&sort=new&restrict_sr=1&t=week&q=${encodeURIComponent(`"${phrase}"`)}`;
+          
+          const response = await fetch(url, {
+            headers: {
+              "Authorization": `Bearer ${accessToken}`,
+              "User-Agent": USER_AGENT
+            }
+          });
+
+          if (!response.ok) {
+            if (response.status === 429) {
+              console.warn(`Rate limited for ${subreddit}/"${phrase}": waiting...`);
+              await sleep(5000);
+              continue;
+            }
+            console.warn(`Reddit API error for ${subreddit}/"${phrase}": ${response.status}`);
+            continue;
+          }
+
+          const data = await response.json();
+          
+          for (const child of data?.data?.children ?? []) {
+            const p = child.data;
+            const body = `${p.title ?? ""}\n\n${p.selftext ?? ""}`.trim();
+            
+            // Filter out physical product posts
+            if (!isSoftwareFocused(p.title ?? "", p.selftext ?? "")) {
+              filteredCount++;
+              continue;
+            }
+            
+            const createdISO = new Date((p.created_utc ?? p.created) * 1000).toISOString();
+            const hash = await makeHash("reddit", p.id, body, createdISO);
+
+            posts.push({
+              platform: "reddit",
+              platform_post_id: String(p.id),
+              author: p.author ? String(p.author) : null,
+              url: p.permalink ? `https://www.reddit.com${p.permalink}` : null,
+              created_at: createdISO,
+              fetched_at: nowISO,
+              title: p.title ?? null,
+              body: body,
+              hash: hash
+            });
+
+            // Stop if we have enough posts
+            if (posts.length >= maxPosts) break;
+          }
+
+          if (posts.length >= maxPosts) break;
+          await sleep(200); // Rate limiting
+        } catch (error) {
+          console.error(`Error fetching ${subreddit}/"${phrase}":`, error);
+        }
+      }
+      if (posts.length >= maxPosts) break;
+      await sleep(500); // Pause between subreddits
+    }
+    
+    console.log(`Reddit ingestion complete: ${posts.length} posts fetched, ${filteredCount} filtered`);
+    return { posts, filtered: filteredCount };
+    
   } catch (error) {
-    console.warn("Error checking Twitter quota usage:", error);
-    return { daily: 0, monthly: 0 };
+    console.error("Reddit ingestion failed:", error);
+    throw error;
   }
-}
-
-async function checkTwitterQuota(supabase: any, tier: string): Promise<{ canProceed: boolean, reason?: string, usage: any }> {
-  const limits = TWITTER_LIMITS[tier as keyof typeof TWITTER_LIMITS];
-  if (!limits) {
-    return { canProceed: false, reason: "Unknown API tier", usage: null };
-  }
-
-  const usage = await getTwitterQuotaUsage(supabase);
-  
-  // Check monthly limit (most restrictive for free tier)
-  if (usage.monthly >= limits.monthly_posts) {
-    return {
-      canProceed: false,
-      reason: `Monthly limit reached: ${usage.monthly}/${limits.monthly_posts} posts`,
-      usage
-    };
-  }
-
-  // Check daily limit
-  if (usage.daily >= limits.daily_posts) {
-    return {
-      canProceed: false,
-      reason: `Daily limit reached: ${usage.daily}/${limits.daily_posts} posts`,
-      usage
-    };
-  }
-
-  return { canProceed: true, usage };
 }
 
 Deno.serve(async (req) => {
@@ -311,304 +202,64 @@ Deno.serve(async (req) => {
     });
   }
 
+  const startTime = Date.now();
+  
   try {
-    console.log("Starting enhanced multi-platform ingest job...");
-    const startTime = Date.now();
-    const nowISO = new Date().toISOString();
-    const runId = `multiplatform_${Date.now()}`;
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({
+        success: false,
+        posts: [],
+        filtered: 0,
+        error: "Only POST requests are supported"
+      }), {
+        status: 405,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" }
+      });
+    }
 
-    // Parse URL parameters for execution control
-    const url = new URL(req.url);
-    const extended = url.searchParams.get("extended") === "true";
-    // Pro version allows longer execution - increase defaults
-    const maxSubreddits = parseInt(url.searchParams.get("max_subreddits") || (extended ? "57" : "35"));
-    const maxPhrases = parseInt(url.searchParams.get("max_phrases") || "12");
+    const body = await req.json().catch(() => ({}));
+    const maxPosts = Math.min(body.max_posts || 200, 200);
     
-    // Select subreddit list based on parameters
-    const selectedSubreddits = (extended ? extendedSubreddits : subreddits).slice(0, maxSubreddits);
-    const selectedPhrases = phrases.slice(0, maxPhrases);
+    console.log(`Reddit: Processing up to ${maxPosts} posts`);
+
+    const result = await fetchRedditPosts(maxPosts);
     
-    console.log(`Supabase Pro - Execution mode: ${extended ? 'extended' : 'priority'}, Subreddits: ${selectedSubreddits.length}, Phrases: ${selectedPhrases.length}`);
-
-    // Validate required environment variables
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing required Supabase environment variables");
-    }
-
-    console.log("Environment variables validated");
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    const allPosts: PostData[] = [];
-    let redditPosts = 0;
-    let twitterPosts = 0;
-    let filteredOutPosts = 0;
-
-    // === REDDIT INGESTION ===
-    if (REDDIT_CLIENT_ID && REDDIT_CLIENT_SECRET) {
-      console.log("Starting Reddit ingestion...");
-      try {
-        console.log("Getting Reddit token...");
-        const accessToken = await getRedditToken();
-        console.log("Reddit token obtained successfully");
-
-        // Process Reddit subreddits with rate limiting
-        for (let subIndex = 0; subIndex < selectedSubreddits.length; subIndex++) {
-          const subreddit = selectedSubreddits[subIndex];
-          console.log(`Processing subreddit ${subIndex + 1}/${selectedSubreddits.length}: ${subreddit}`);
-          
-          // Process phrases in smaller batches with longer delays
-          for (let i = 0; i < selectedPhrases.length; i += 3) {
-            const phraseBatch = selectedPhrases.slice(i, i + 3);
-            
-            for (const phrase of phraseBatch) {
-              try {
-                const url = `https://oauth.reddit.com/r/${subreddit}/search?limit=5&sort=new&restrict_sr=1&t=week&q=${encodeURIComponent(`"${phrase}"`)}`;
-                
-                const response = await fetch(url, {
-                  headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "User-Agent": USER_AGENT
-                  }
-                });
-
-                if (!response.ok) {
-                  if (response.status === 429) {
-                    console.warn(`Rate limited for ${subreddit}/"${phrase}": waiting 10 seconds...`);
-                    await sleep(10000); // Wait 10 seconds for rate limit
-                    continue;
-                  }
-                  console.warn(`Reddit API error for ${subreddit}/"${phrase}": ${response.status}`);
-                  continue;
-                }
-
-                const data = await response.json();
-                
-                for (const child of data?.data?.children ?? []) {
-                  const p = child.data;
-                  const body = `${p.title ?? ""}\n\n${p.selftext ?? ""}`.trim();
-                  
-                  // Filter out physical product posts - focus on SaaS/software only
-                  if (!isSoftwareFocused(p.title ?? "", p.selftext ?? "")) {
-                    filteredOutPosts++;
-                    continue;
-                  }
-                  
-                  const createdISO = new Date((p.created_utc ?? p.created) * 1000).toISOString();
-                  const hash = await makeHash("reddit", p.id, body, createdISO);
-
-                  allPosts.push({
-                    platform: "reddit",
-                    platform_post_id: String(p.id),
-                    author: p.author ? String(p.author) : null,
-                    url: p.permalink ? `https://www.reddit.com${p.permalink}` : null,
-                    created_at: createdISO,
-                    fetched_at: nowISO,
-                    title: p.title ?? null,
-                    body: body,
-                    hash: hash
-                  });
-                  redditPosts++;
-                }
-
-                // Pro version - optimized delays for better throughput
-                await sleep(extended ? 400 : 150);
-              } catch (error) {
-                console.error(`Error fetching ${subreddit}/"${phrase}":`, error);
-              }
-            }
-            
-            // Pause between phrase batches - reduced for Pro
-            await sleep(extended ? 800 : 200);
-          }
-          
-          // Pause between subreddits - reduced for Pro
-          await sleep(extended ? 1500 : 300);
-        }
-        console.log(`Reddit ingestion complete: ${redditPosts} posts fetched`);
-      } catch (error) {
-        console.error("Reddit ingestion failed:", error);
-      }
-    } else {
-      console.warn("Reddit credentials not configured, skipping Reddit ingestion");
-    }
-
-    // === TWITTER INGESTION ===
-    if (TWITTER_BEARER_TOKEN) {
-      console.log("Starting Twitter ingestion...");
-      try {
-        // Check Twitter quota before proceeding
-        const quotaCheck = await checkTwitterQuota(supabase, TWITTER_API_TIER);
-        console.log(`Twitter quota check - Tier: ${TWITTER_API_TIER}, Usage: ${quotaCheck.usage?.monthly}/${TWITTER_LIMITS[TWITTER_API_TIER as keyof typeof TWITTER_LIMITS]?.monthly_posts || 'unknown'}`);
-
-        if (!quotaCheck.canProceed) {
-          console.warn(`Twitter ingestion skipped: ${quotaCheck.reason}`);
-          // Continue with Reddit-only data
-        } else {
-          // Calculate safe query limit based on remaining quota
-          const limits = TWITTER_LIMITS[TWITTER_API_TIER as keyof typeof TWITTER_LIMITS];
-          const remaining = limits.monthly_posts - (quotaCheck.usage?.monthly || 0);
-          const maxQueriesForTier = Math.min(limits.queries_per_day, Math.floor(remaining / 5)); // ~5 posts per query average
-          
-          // Search for complaint phrases combined with business terms
-          const twitterQueries = phrases.slice(0, Math.min(5, maxQueriesForTier)).map(phrase => 
-            `"${phrase}" (startup OR SaaS OR business OR entrepreneur OR freelance)`
-          );
-
-          // Add hashtag searches if quota allows
-          if (twitterQueries.length < maxQueriesForTier) {
-            twitterQueries.push(...twitterHashtags.slice(0, Math.min(3, maxQueriesForTier - twitterQueries.length)).map(tag => 
-              `${tag} (frustrating OR annoying OR broken OR "doesn't work")`
-            ));
-          }
-
-          // Add searches from popular accounts if quota allows
-          if (twitterQueries.length < maxQueriesForTier) {
-            twitterQueries.push(...twitterAccounts.slice(0, Math.min(3, maxQueriesForTier - twitterQueries.length)).map(account => 
-              `from:${account} (problem OR issue OR frustrating OR "need a solution")`
-            ));
-          }
-
-          console.log(`Processing ${twitterQueries.length} Twitter queries (limited by ${TWITTER_API_TIER} tier quota)`);
-
-          for (const query of twitterQueries) {
-            console.log(`Processing Twitter query: ${query}`);
-            try {
-              // Check quota before each query for safety
-              const currentQuota = await checkTwitterQuota(supabase, TWITTER_API_TIER);
-              if (!currentQuota.canProceed) {
-                console.warn(`Stopping Twitter ingestion mid-process: ${currentQuota.reason}`);
-                break;
-              }
-
-              const twitterResults = await fetchTwitterPosts(query, 10);
-              allPosts.push(...twitterResults.posts);
-              twitterPosts += twitterResults.posts.length;
-              filteredOutPosts += twitterResults.filtered;
-              
-              // Longer delay for free tier to be extra cautious
-              const delayMs = TWITTER_API_TIER === 'free' ? 2000 : 1000;
-              await sleep(delayMs);
-            } catch (error) {
-              console.error(`Error with Twitter query "${query}":`, error);
-            }
-          }
-        }
-        console.log(`Twitter ingestion complete: ${twitterPosts} posts fetched`);
-      } catch (error) {
-        console.error("Twitter ingestion failed:", error);
-      }
-    } else {
-      console.warn("Twitter Bearer Token not configured, skipping Twitter ingestion");
-    }
-
-    console.log(`Total posts fetched: ${allPosts.length} (Reddit: ${redditPosts}, Twitter: ${twitterPosts}, Filtered out: ${filteredOutPosts})`);
-
-    // Remove duplicates based on platform + platform_post_id
-    const uniquePosts = allPosts.filter((post, index, self) => 
-      index === self.findIndex(p => p.platform === post.platform && p.platform_post_id === post.platform_post_id)
-    );
-
-    console.log(`Unique posts after deduplication: ${uniquePosts.length}`);
-
-    let insertedCount = 0;
-    if (uniquePosts.length > 0) {
-      // Insert in smaller batches
-      const batchSize = 50;
-      for (let i = 0; i < uniquePosts.length; i += batchSize) {
-        const batch = uniquePosts.slice(i, i + batchSize);
-        console.log(`Inserting batch ${Math.floor(i/batchSize) + 1}, size: ${batch.length}`);
-
-        const { error, count } = await supabase
-          .from("posts")
-          .upsert(batch, {
-            onConflict: "platform,platform_post_id",
-            ignoreDuplicates: true,
-            count: 'exact'
-          });
-
-        if (error) {
-          console.error("Upsert error:", error);
-          console.error("Error details:", JSON.stringify(error, null, 2));
-          throw new Error(`Database upsert failed: ${error.message}`);
-        }
-
-        console.log(`Batch inserted successfully, count: ${count}`);
-        insertedCount += count || 0;
-      }
-    } else {
-      console.log("No posts to insert");
-    }
-
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-
-    // Get final Twitter quota usage for reporting
-    let twitterQuotaInfo = null;
-    if (TWITTER_BEARER_TOKEN) {
-      try {
-        const finalQuota = await getTwitterQuotaUsage(supabase);
-        const limits = TWITTER_LIMITS[TWITTER_API_TIER as keyof typeof TWITTER_LIMITS];
-        twitterQuotaInfo = {
-          tier: TWITTER_API_TIER,
-          daily_usage: `${finalQuota.daily}/${limits?.daily_posts || 'unknown'}`,
-          monthly_usage: `${finalQuota.monthly}/${limits?.monthly_posts || 'unknown'}`,
-          daily_remaining: Math.max(0, (limits?.daily_posts || 0) - finalQuota.daily),
-          monthly_remaining: Math.max(0, (limits?.monthly_posts || 0) - finalQuota.monthly)
-        };
-      } catch (error) {
-        console.warn("Error getting final Twitter quota:", error);
-      }
-    }
-
-    const result = {
-      status: "success",
+    const duration = Date.now() - startTime;
+    
+    return new Response(JSON.stringify({
+      success: true,
+      posts: result.posts,
+      filtered: result.filtered,
+      message: `Successfully fetched ${result.posts.length} Reddit posts, filtered ${result.filtered}`,
       duration_ms: duration,
-      total_fetched: allPosts.length,
-      reddit_posts: redditPosts,
-      twitter_posts: twitterPosts,
-      filtered_out_posts: filteredOutPosts,
-      unique_posts: uniquePosts.length,
-      inserted: insertedCount,
-      run_id: runId,
-      twitter_quota: twitterQuotaInfo,
-      filtering_info: {
-        saas_focused: true,
-        physical_products_filtered: filteredOutPosts,
-        filter_keywords: physicalProductKeywords.length
-      },
-      function_info: {
-        version: FUNCTION_VERSION,
-        last_updated: LAST_UPDATED,
-        timestamp: nowISO
+      platform_info: {
+        name: "reddit",
+        version: "1.0.0",
+        last_updated: "2025-01-17T11:00:00Z"
       }
-    };
-
-    console.log("Ingestion complete:", result);
-
-    return new Response(JSON.stringify(result), {
+    }), {
       status: 200,
-      headers: {
-        ...corsHeaders(),
-        "Content-Type": "application/json"
-      }
+      headers: { ...corsHeaders(), "Content-Type": "application/json" }
     });
 
   } catch (error) {
-    console.error("Error in enhanced ingest:", error);
+    console.error("Reddit platform function error:", error);
+    const duration = Date.now() - startTime;
+    
     return new Response(JSON.stringify({
+      success: false,
+      posts: [],
+      filtered: 0,
       error: String(error),
-      status: "error",
-      function_info: {
-        version: FUNCTION_VERSION,
-        last_updated: LAST_UPDATED,
-        timestamp: new Date().toISOString()
+      duration_ms: duration,
+      platform_info: {
+        name: "reddit",
+        version: "1.0.0",
+        last_updated: "2025-01-17T11:00:00Z"
       }
     }), {
       status: 500,
-      headers: {
-        ...corsHeaders(),
-        "Content-Type": "application/json"
-      }
+      headers: { ...corsHeaders(), "Content-Type": "application/json" }
     });
   }
 });
