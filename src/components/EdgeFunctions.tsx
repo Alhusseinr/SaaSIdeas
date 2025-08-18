@@ -1,6 +1,29 @@
 'use client'
 
 import { useState } from 'react'
+import {
+  Container,
+  Card,
+  Title,
+  Text,
+  Button,
+  Stack,
+  Group,
+  Badge,
+  Grid,
+  ThemeIcon,
+  Alert,
+  Loader,
+  Code,
+  JsonInput
+} from '@mantine/core'
+import {
+  IconFunction,
+  IconPlaylistX,
+  IconDatabase,
+  IconCheck,
+  IconX
+} from '@tabler/icons-react'
 import { invokeEdgeFunction, supabase } from '@/lib/supabase'
 
 interface EdgeFunction {
@@ -94,91 +117,154 @@ export default function EdgeFunctions() {
   }
 
   return (
-    <div className="bg-white shadow-sm rounded-lg">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Edge Functions</h2>
-            <p className="text-sm text-gray-600 mt-1">Trigger your Supabase Edge Functions</p>
-          </div>
-          <button
-            onClick={testConnection}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded text-sm font-medium"
-          >
-            Test Connection
-          </button>
-        </div>
-      </div>
-      
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {EDGE_FUNCTIONS.map((func) => (
-            <div key={func.name} className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-medium text-gray-900">{func.displayName}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{func.description}</p>
-                </div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  {func.name}
-                </span>
+    <Container size="xl">
+      <Stack gap="xl">
+        {/* Header */}
+        <Card radius="xl" withBorder style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
+          <Group justify="space-between">
+            <Group>
+              <ThemeIcon size="lg" radius="md" style={{ backgroundColor: '#006B3C', color: '#F5F5F5' }}>
+                <IconFunction size={20} />
+              </ThemeIcon>
+              <div>
+                <Title order={2} c="#F5F5F5">Edge Functions</Title>
+                <Text c="#CCCCCC" size="sm">Trigger your Supabase Edge Functions</Text>
               </div>
+            </Group>
+            <Button
+              onClick={testConnection}
+              leftSection={<IconDatabase size={16} />}
+              style={{
+                backgroundColor: '#2A2A2A',
+                color: '#E5E5E5',
+                borderColor: '#404040'
+              }}
+            >
+              Test Connection
+            </Button>
+          </Group>
+        </Card>
 
-              {func.requiresPayload && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    JSON Payload (optional)
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={payloads[func.name] || ''}
-                    onChange={(e) => updatePayload(func.name, e.target.value)}
-                    placeholder='{"key": "value"}'
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white placeholder-gray-500 font-mono text-sm"
-                  />
-                </div>
-              )}
-
-              <button
-                onClick={() => handleInvokeFunction(func)}
-                disabled={loadingStates[func.name]}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center"
-              >
-                {loadingStates[func.name] ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Running...
-                  </>
-                ) : (
-                  'Invoke Function'
-                )}
-              </button>
-
-              {errors[func.name] && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-800">{errors[func.name]}</p>
-                </div>
-              )}
-
-              {results[func.name] && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-medium text-gray-900">Result:</h4>
-                    {results[func.name]?.function_info && (
-                      <div className="text-xs text-gray-500">
-                        v{results[func.name].function_info.version} • Updated {new Date(results[func.name].function_info.last_updated).toLocaleDateString()}
-                      </div>
-                    )}
+        {/* Functions Grid */}
+        <Grid>
+          {EDGE_FUNCTIONS.map((func) => (
+            <Grid.Col key={func.name} span={{ base: 12, md: 6 }}>
+              <Card radius="xl" withBorder style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
+                {/* Function Header */}
+                <Group justify="space-between" mb="md">
+                  <div>
+                    <Title order={4} c="#F5F5F5">{func.displayName}</Title>
+                    <Text c="#CCCCCC" size="sm" mt="xs">{func.description}</Text>
                   </div>
-                  <pre className="bg-gray-50 border border-gray-200 rounded-md p-3 text-xs overflow-x-auto text-gray-800">
-                    {JSON.stringify(results[func.name], null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
+                  <Badge
+                    style={{
+                      backgroundColor: '#006B3C',
+                      color: '#F5F5F5'
+                    }}
+                    size="sm"
+                  >
+                    {func.name}
+                  </Badge>
+                </Group>
+
+                {/* Payload Input */}
+                {func.requiresPayload && (
+                  <Stack gap="xs" mb="md">
+                    <Text size="sm" fw={500} c="#F5F5F5">
+                      JSON Payload (optional)
+                    </Text>
+                    <JsonInput
+                      placeholder='{"key": "value"}'
+                      value={payloads[func.name] || ''}
+                      onChange={(value) => updatePayload(func.name, value)}
+                      rows={3}
+                      styles={{
+                        input: { 
+                          backgroundColor: '#2A2A2A', 
+                          borderColor: '#404040', 
+                          color: '#F5F5F5',
+                          fontFamily: 'monospace'
+                        },
+                        label: { color: '#F5F5F5' }
+                      }}
+                    />
+                  </Stack>
+                )}
+
+                {/* Invoke Button */}
+                <Button
+                  onClick={() => handleInvokeFunction(func)}
+                  disabled={loadingStates[func.name]}
+                  fullWidth
+                  size="md"
+                  radius="md"
+                  style={{
+                    background: 'linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)',
+                    color: '#F5F5F5',
+                    border: 'none'
+                  }}
+                  leftSection={
+                    loadingStates[func.name] ? (
+                      <Loader size="sm" color="#F5F5F5" />
+                    ) : (
+                      <IconPlaylistX size={16} />
+                    )
+                  }
+                >
+                  {loadingStates[func.name] ? 'Running...' : 'Invoke Function'}
+                </Button>
+
+                {/* Error Display */}
+                {errors[func.name] && (
+                  <Alert
+                    icon={<IconX size={16} />}
+                    title="Error"
+                    color="red"
+                    radius="md"
+                    mt="md"
+                    style={{
+                      backgroundColor: '#2A2A2A',
+                      borderColor: '#FF6B6B',
+                      color: '#F5F5F5'
+                    }}
+                  >
+                    <Text c="#FF6B6B" size="sm">{errors[func.name]}</Text>
+                  </Alert>
+                )}
+
+                {/* Results Display */}
+                {results[func.name] && (
+                  <Stack gap="xs" mt="md">
+                    <Group justify="space-between">
+                      <Group gap="xs">
+                        <IconCheck size={16} color="#006B3C" />
+                        <Text size="sm" fw={500} c="#F5F5F5">Result:</Text>
+                      </Group>
+                      {results[func.name]?.function_info && (
+                        <Text size="xs" c="#666666">
+                          v{results[func.name].function_info.version} • Updated {new Date(results[func.name].function_info.last_updated).toLocaleDateString()}
+                        </Text>
+                      )}
+                    </Group>
+                    <Code
+                      block
+                      style={{
+                        backgroundColor: '#2A2A2A',
+                        borderColor: '#404040',
+                        color: '#E5E5E5',
+                        maxHeight: '300px',
+                        overflow: 'auto'
+                      }}
+                    >
+                      {JSON.stringify(results[func.name], null, 2)}
+                    </Code>
+                  </Stack>
+                )}
+              </Card>
+            </Grid.Col>
           ))}
-        </div>
-      </div>
-    </div>
+        </Grid>
+      </Stack>
+    </Container>
   )
 }

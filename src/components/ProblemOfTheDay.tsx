@@ -1,6 +1,28 @@
 "use client";
 
 import { useState, useEffect } from 'react'
+import { 
+  Card, 
+  Text, 
+  Button, 
+  Group, 
+  Stack, 
+  Grid, 
+  Box,
+  Skeleton,
+  Center,
+  ThemeIcon,
+  Alert
+} from '@mantine/core'
+import { 
+  IconBolt, 
+  IconAlertCircle, 
+  IconMessage, 
+  IconShare,
+  IconEye,
+  IconMail,
+  IconClock
+} from '@tabler/icons-react'
 import { SaasIdeaItem } from '@/lib/supabase'
 import { getTodaysValidatedOpportunity } from '@/lib/dailyIdea'
 
@@ -29,155 +51,217 @@ export default function ProblemOfTheDay({ onViewDetails }: ProblemOfTheDayProps)
   }, [])
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "bg-gradient-to-br from-green-100 to-green-200 text-green-800 border border-green-300";
-    if (score >= 60) return "bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300";
-    if (score >= 40) return "bg-gradient-to-br from-orange-100 to-orange-200 text-orange-800 border border-orange-300";
-    return "bg-gradient-to-br from-red-100 to-red-200 text-red-800 border border-red-300";
+    if (score >= 80) return { color: 'green', variant: 'light' };
+    if (score >= 60) return { color: 'yellow', variant: 'light' };
+    if (score >= 40) return { color: 'orange', variant: 'light' };
+    return { color: 'red', variant: 'light' };
   };
 
   if (isLoading) {
     return (
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200 animate-pulse">
-        <div className="flex items-center mb-4">
-          <div className="w-8 h-8 bg-gray-300 rounded-lg mr-3"></div>
-          <div className="h-6 bg-gray-300 rounded w-48"></div>
-        </div>
-        <div className="space-y-3">
-          <div className="h-4 bg-gray-300 rounded w-full"></div>
-          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-          <div className="h-10 bg-gray-300 rounded w-32"></div>
-        </div>
-      </div>
+      <Card 
+        radius="xl" 
+        p="xl" 
+        withBorder
+        style={{ 
+          background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%)',
+          borderColor: '#404040'
+        }}
+      >
+        <Group mb="md">
+          <Skeleton height={32} width={32} radius="md" />
+          <Skeleton height={24} width={200} radius="sm" />
+        </Group>
+        <Stack gap="sm">
+          <Skeleton height={16} radius="sm" />
+          <Skeleton height={16} width="75%" radius="sm" />
+          <Skeleton height={40} width={128} radius="sm" />
+        </Stack>
+      </Card>
     )
   }
 
   if (!todaysProblem) {
     return (
-      <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
-        <div className="text-center">
-          <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Problem Featured Today</h3>
-          <p className="text-gray-600">Check back tomorrow for a new validated opportunity!</p>
-        </div>
-      </div>
+      <Card 
+        radius="xl" 
+        p="xl" 
+        withBorder
+        style={{ 
+          background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%)',
+          borderColor: '#404040'
+        }}
+      >
+        <Center>
+          <Stack align="center" gap="md">
+            <ThemeIcon size="xl" style={{ backgroundColor: '#404040', color: '#CCCCCC' }}>
+              <IconAlertCircle size={32} />
+            </ThemeIcon>
+            <Text size="lg" fw={500} ta="center" c="#F5F5F5">No Problem Featured Today</Text>
+            <Text c="#CCCCCC" ta="center">Check back tomorrow for a new validated opportunity!</Text>
+          </Stack>
+        </Center>
+      </Card>
     )
   }
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200 shadow-sm">
+    <Card 
+      radius="xl" 
+      p="xl" 
+      withBorder
+      style={{ 
+        background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%)',
+        borderColor: '#404040'
+      }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center">
-          <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
+      <Group justify="space-between" mb="md">
+        <Group>
+          <ThemeIcon 
+            size="lg" 
+            radius="md" 
+            style={{ 
+              background: 'linear-gradient(135deg, #C5A46D 0%, rgba(197, 164, 109, 0.8) 100%)',
+              color: '#0D0D0D'
+            }}
+          >
+            <IconBolt size={20} />
+          </ThemeIcon>
           <div>
-            <h3 className="text-lg font-bold text-gray-900">Problem of the Day</h3>
-            <p className="text-sm text-gray-600">{new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}</p>
+            <Text size="lg" fw={700} c="#C5A46D">Problem of the Day</Text>
+            <Text size="sm" c="#CCCCCC">
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </Text>
           </div>
-        </div>
-        <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl text-sm font-bold shadow-sm ${getScoreColor(todaysProblem.score)}`}>
+        </Group>
+        <ThemeIcon
+          size="xl"
+          radius="md"
+          {...getScoreColor(todaysProblem.score)}
+          style={{ fontSize: '14px', fontWeight: 700 }}
+        >
           {todaysProblem.score}
-        </div>
-      </div>
+        </ThemeIcon>
+      </Group>
 
       {/* Problem Details */}
-      <div className="mb-6">
-        <h4 className="text-xl font-bold text-gray-900 mb-2 leading-tight">
+      <Box mb="xl">
+        <Text size="xl" fw={700} mb="xs" lh={1.2} c="#F5F5F5">
           {todaysProblem.name}
-        </h4>
-        <p className="text-gray-700 leading-relaxed mb-4">
+        </Text>
+        <Text c="#E5E5E5" lh={1.6} mb="md">
           {todaysProblem.one_liner}
-        </p>
+        </Text>
         
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <div className="bg-white rounded-lg p-3 border border-blue-200 text-center">
-            <div className="text-lg font-bold text-blue-900">
-              {todaysProblem.representative_post_ids?.length || 0}
-            </div>
-            <div className="text-xs text-blue-700">User Complaints</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 border border-purple-200 text-center">
-            <div className="text-lg font-bold text-purple-900">
-              {Math.round((todaysProblem.development_timeline_months || 6) * 4.33)}w
-            </div>
-            <div className="text-xs text-purple-700">Time to Build</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 border border-green-200 text-center">
-            <div className="text-lg font-bold text-green-900">
-              {todaysProblem.revenue_projection ? 
-                `$${(todaysProblem.revenue_projection.monthly_recurring_revenue.month_12 / 1000).toFixed(0)}K` : 
-                '$50K'}
-            </div>
-            <div className="text-xs text-green-700">Year 1 ARR</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 border border-orange-200 text-center">
-            <div className="text-lg font-bold text-orange-900">
-              {todaysProblem.founder_market_fit_score || 75}
-            </div>
-            <div className="text-xs text-orange-700">Founder Fit</div>
-          </div>
-        </div>
+        <Grid mb="md">
+          <Grid.Col span={{ base: 6, sm: 3 }}>
+            <Card withBorder radius="md" p="sm" style={{ backgroundColor: '#2A2A2A', borderColor: '#006B3C' }}>
+              <Text ta="center" size="lg" fw={700} c="#006B3C">
+                {todaysProblem.representative_post_ids?.length || 0}
+              </Text>
+              <Text ta="center" size="xs" c="#E5E5E5">User Complaints</Text>
+            </Card>
+          </Grid.Col>
+          <Grid.Col span={{ base: 6, sm: 3 }}>
+            <Card withBorder radius="md" p="sm" style={{ backgroundColor: '#2A2A2A', borderColor: '#C5A46D' }}>
+              <Text ta="center" size="lg" fw={700} c="#C5A46D">
+                {Math.round((todaysProblem.development_timeline_months || 6) * 4.33)}w
+              </Text>
+              <Text ta="center" size="xs" c="#E5E5E5">Time to Build</Text>
+            </Card>
+          </Grid.Col>
+          <Grid.Col span={{ base: 6, sm: 3 }}>
+            <Card withBorder radius="md" p="sm" style={{ backgroundColor: '#2A2A2A', borderColor: '#006B3C' }}>
+              <Text ta="center" size="lg" fw={700} c="#006B3C">
+                {todaysProblem.revenue_projection ? 
+                  `$${(todaysProblem.revenue_projection.monthly_recurring_revenue.month_12 / 1000).toFixed(0)}K` : 
+                  '$50K'}
+              </Text>
+              <Text ta="center" size="xs" c="#E5E5E5">Year 1 ARR</Text>
+            </Card>
+          </Grid.Col>
+          <Grid.Col span={{ base: 6, sm: 3 }}>
+            <Card withBorder radius="md" p="sm" style={{ backgroundColor: '#2A2A2A', borderColor: '#C5A46D' }}>
+              <Text ta="center" size="lg" fw={700} c="#C5A46D">
+                {todaysProblem.founder_market_fit_score || 75}
+              </Text>
+              <Text ta="center" size="xs" c="#E5E5E5">Founder Fit</Text>
+            </Card>
+          </Grid.Col>
+        </Grid>
 
         {/* Why Now */}
         {todaysProblem.why_now && (
-          <div className="bg-white rounded-lg p-4 border border-gray-200 mb-4">
-            <h5 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
-              <svg className="w-4 h-4 text-amber-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Why Now?
-            </h5>
-            <p className="text-sm text-gray-700 leading-relaxed">
+          <Alert 
+            style={{ 
+              backgroundColor: '#2A2A2A',
+              borderColor: '#C5A46D',
+              color: '#F5F5F5'
+            }}
+            variant="light" 
+            radius="md" 
+            mb="md"
+            icon={<IconClock size={16} color="#C5A46D" />}
+            title="Why Now?"
+          >
+            <Text size="sm" lh={1.6} c="#E5E5E5">
               {todaysProblem.why_now}
-            </p>
-          </div>
+            </Text>
+          </Alert>
         )}
-      </div>
+      </Box>
 
       {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <button
+      <Group mb="md" grow>
+        <Button
           onClick={() => onViewDetails(todaysProblem)}
-          className="flex-1 inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+          size="md"
+          radius="md"
+          leftSection={<IconEye size={20} />}
+          style={{
+            background: 'linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)',
+            color: '#F5F5F5',
+            border: 'none',
+            fontWeight: 500,
+            transition: 'all 0.2s'
+          }}
         >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
           Analyze This Opportunity
-        </button>
+        </Button>
         
-        <button className="inline-flex items-center justify-center px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-lg border border-gray-300 transition-colors">
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-          </svg>
+        <Button
+          size="md"
+          radius="md"
+          leftSection={<IconShare size={20} />}
+          style={{
+            background: 'linear-gradient(135deg, #0A1F44 0%, rgba(10, 31, 68, 0.8) 100%)',
+            color: '#F5F5F5',
+            border: 'none'
+          }}
+        >
           Share
-        </button>
-      </div>
+        </Button>
+      </Group>
 
       {/* Email Signup Hint */}
-      <div className="mt-4 p-3 bg-white rounded-lg border border-blue-200">
-        <div className="flex items-center text-sm">
-          <svg className="w-4 h-4 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          <span className="text-gray-700">
-            <span className="font-medium">Want daily problems in your inbox?</span> 
-            <span className="text-blue-600 hover:text-blue-700 cursor-pointer ml-1">Get email alerts →</span>
-          </span>
-        </div>
-      </div>
-    </div>
+      <Card withBorder radius="md" p="sm" style={{ backgroundColor: 'rgba(197, 164, 109, 0.1)', borderColor: '#C5A46D', backdropFilter: 'blur(10px)' }}>
+        <Group gap="sm">
+          <IconMail size={16} color="#C5A46D" />
+          <Text size="sm">
+            <Text component="span" fw={500} c="#F5F5F5">Want daily problems in your inbox?</Text>{' '}
+            <Text component="span" c="#C5A46D" style={{ cursor: 'pointer' }}>
+              Get email alerts →
+            </Text>
+          </Text>
+        </Group>
+      </Card>
+    </Card>
   )
 }

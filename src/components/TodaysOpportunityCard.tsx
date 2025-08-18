@@ -1,11 +1,38 @@
 "use client";
 
 import { useState, useEffect } from 'react'
+import { 
+  Card, 
+  Text, 
+  Badge, 
+  Button, 
+  Group, 
+  Stack, 
+  Grid, 
+  Box,
+  Loader,
+  Center,
+  Modal,
+  Skeleton,
+  Alert,
+  ActionIcon,
+  Tooltip,
+  ThemeIcon
+} from '@mantine/core'
+import { 
+  IconMessage, 
+  IconTrendingUp, 
+  IconClock, 
+  IconAlertTriangle,
+  IconCheck,
+  IconBolt,
+  IconX
+} from '@tabler/icons-react'
 import { getTodaysValidatedOpportunity, DailyIdeaData } from '@/lib/dailyIdea'
 import ScoreBreakdown from './ScoreBreakdown'
 
 interface TodaysOpportunityCardProps {
-  onGetStarted: (planId?: string) => void
+  onGetStarted?: (planId?: string) => void
 }
 
 export default function TodaysOpportunityCard({ onGetStarted }: TodaysOpportunityCardProps) {
@@ -33,10 +60,10 @@ export default function TodaysOpportunityCard({ onGetStarted }: TodaysOpportunit
   }, [])
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "bg-gradient-to-br from-green-100 to-green-200 text-green-800 border border-green-300";
-    if (score >= 60) return "bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300";
-    if (score >= 40) return "bg-gradient-to-br from-orange-100 to-orange-200 text-orange-800 border border-orange-300";
-    return "bg-gradient-to-br from-red-100 to-red-200 text-red-800 border border-red-300";
+    if (score >= 80) return { color: 'green', variant: 'light' };
+    if (score >= 60) return { color: 'yellow', variant: 'light' };
+    if (score >= 40) return { color: 'orange', variant: 'light' };
+    return { color: 'red', variant: 'light' };
   };
 
   const formatRevenue = (revenue: number) => {
@@ -53,194 +80,285 @@ export default function TodaysOpportunityCard({ onGetStarted }: TodaysOpportunit
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden animate-pulse">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-32 h-6 bg-white/20 rounded-full"></div>
-            <div className="w-20 h-4 bg-white/20 rounded"></div>
-          </div>
-          <div className="flex items-start justify-between">
-            <div className="flex-1 pr-4">
-              <div className="w-3/4 h-6 bg-white/20 rounded mb-2"></div>
-              <div className="w-1/2 h-4 bg-white/20 rounded"></div>
-            </div>
-            <div className="w-16 h-16 bg-white/20 rounded-xl"></div>
-          </div>
-        </div>
-        <div className="p-6">
-          <div className="w-full h-4 bg-gray-200 rounded mb-6"></div>
-          <div className="grid grid-cols-2 gap-4 mb-6">
+      <Card shadow="xl" radius="xl" withBorder style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
+        <Card.Section>
+          <Box bg="linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)" p="xl">
+            <Group justify="space-between" mb="md">
+              <Skeleton height={24} width={128} radius="xl" />
+              <Skeleton height={16} width={80} radius="sm" />
+            </Group>
+            <Group align="flex-start" justify="space-between">
+              <Box flex={1} pr="md">
+                <Skeleton height={24} width="75%" radius="sm" mb="xs" />
+                <Skeleton height={16} width="50%" radius="sm" />
+              </Box>
+              <Skeleton height={64} width={64} radius="xl" />
+            </Group>
+          </Box>
+        </Card.Section>
+        
+        <Card.Section p="xl">
+          <Skeleton height={16} radius="sm" mb="xl" />
+          <Grid mb="xl">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>
+              <Grid.Col key={i} span={6}>
+                <Skeleton height={80} radius="md" />
+              </Grid.Col>
             ))}
-          </div>
-          <div className="w-full h-12 bg-gray-200 rounded-lg"></div>
-        </div>
-      </div>
+          </Grid>
+          <Skeleton height={48} radius="md" />
+        </Card.Section>
+      </Card>
     )
   }
 
   if (error || !todaysIdea) {
     return (
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-        <div className="p-6 text-center">
-          <div className="text-gray-500 mb-4">
-            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to load today's opportunity</h3>
-          <p className="text-gray-600">Please try again later</p>
-        </div>
-      </div>
+      <Card shadow="xl" radius="xl" withBorder style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
+        <Center p="xl">
+          <Stack align="center" gap="md">
+            <ThemeIcon size="xl" style={{ backgroundColor: '#404040', color: '#CCCCCC' }}>
+              <IconAlertTriangle size={32} />
+            </ThemeIcon>
+            <Text size="lg" fw={500} ta="center" c="#F5F5F5">Unable to load today's opportunity</Text>
+            <Text c="#CCCCCC" ta="center">Please try again later</Text>
+          </Stack>
+        </Center>
+      </Card>
     )
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+    <Card shadow="xl" radius="xl" withBorder style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
       {/* Header with Badge */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="inline-flex items-center px-3 py-1 bg-white/20 rounded-full">
-            <div className={`w-2 h-2 ${todaysIdea.isNew ? 'bg-orange-400 animate-pulse' : 'bg-green-400'} rounded-full mr-2`}></div>
-            <span className="text-sm font-medium text-white">
-              {todaysIdea.isNew ? "Fresh Today" : "Today's Pick"}
-            </span>
-          </div>
-          <div className="text-xs text-white/70">{new Date().toLocaleDateString()}</div>
-        </div>
-        
-        <div className="flex items-start justify-between">
-          <div className="flex-1 pr-4">
-            <h3 className="text-xl font-bold text-white mb-2 leading-tight">
-              {todaysIdea.name}
-            </h3>
-            <div className="flex items-center space-x-4 text-white/80 text-sm">
-              <div className="flex items-center">
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-1l-4 4z" />
-                </svg>
-                {todaysIdea.userComplaints} user complaints
-              </div>
-              <div className="flex items-center">
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-                {todaysIdea.isNew ? "Just discovered" : "Trending this week"}
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowScoreBreakdown(true)}
-            className={`inline-flex items-center justify-center w-16 h-16 rounded-xl text-lg font-bold flex-shrink-0 hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer ${getScoreColor(todaysIdea.score)}`}
-            title="Click to see score breakdown"
-          >
-            {todaysIdea.score}
-          </button>
-        </div>
-      </div>
+      <Card.Section>
+        <Box bg="linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)" p="xl">
+          <Group justify="space-between" mb="md">
+            <Badge 
+              style={{ backgroundColor: 'rgba(245, 245, 245, 0.2)' }}
+              variant="filled"
+              radius="xl"
+              leftSection={
+                <Box 
+                  w={8} 
+                  h={8} 
+                  style={{ 
+                    backgroundColor: todaysIdea.isNew ? "#C5A46D" : "#006B3C",
+                    borderRadius: '50%',
+                    animation: todaysIdea.isNew ? 'pulse 2s infinite' : 'none'
+                  }}
+                />
+              }
+            >
+              <Text c="#F5F5F5" size="sm" fw={500}>
+                {todaysIdea.isNew ? "Fresh Today" : "Today's Pick"}
+              </Text>
+            </Badge>
+            <Text c="rgba(245, 245, 245, 0.7)" size="xs">
+              {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </Text>
+          </Group>
+          
+          <Group align="flex-start" justify="space-between">
+            <Box flex={1} pr="md">
+              <Text size="xl" fw={700} c="#F5F5F5" mb="xs" lh={1.2}>
+                {todaysIdea.name}
+              </Text>
+              <Group gap="lg">
+                <Group gap="xs">
+                  <IconMessage size={16} color="rgba(245, 245, 245, 0.8)" />
+                  <Text c="rgba(245, 245, 245, 0.8)" size="sm">
+                    {todaysIdea.userComplaints} user complaints
+                  </Text>
+                </Group>
+                <Group gap="xs">
+                  <IconTrendingUp size={16} color="rgba(245, 245, 245, 0.8)" />
+                  <Text c="rgba(245, 245, 245, 0.8)" size="sm">
+                    {todaysIdea.isNew ? "Just discovered" : "Trending this week"}
+                  </Text>
+                </Group>
+              </Group>
+            </Box>
+            <Tooltip label="Click to see score breakdown">
+              <ActionIcon
+                onClick={() => setShowScoreBreakdown(true)}
+                size={64}
+                radius="md"
+                {...getScoreColor(todaysIdea.score)}
+                style={{ 
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  ':hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
+              >
+                {todaysIdea.score}
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Box>
+      </Card.Section>
 
       {/* Content */}
-      <div className="p-6">
-        <p className="text-gray-700 leading-relaxed mb-6">
+      <Card.Section p="xl">
+        <Text c="#E5E5E5" lh={1.6} mb="xl">
           {todaysIdea.one_liner}
-        </p>
+        </Text>
 
         {/* Key Metrics Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 text-center border border-green-200">
-            <div className="text-2xl font-bold text-green-900">{formatRevenue(todaysIdea.yearOneRevenue)}</div>
-            <div className="text-sm text-green-700">Year 1 Revenue</div>
-          </div>
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 text-center border border-blue-200">
-            <div className="text-2xl font-bold text-blue-900">{todaysIdea.buildTime}w</div>
-            <div className="text-sm text-blue-700">Time to Build</div>
-          </div>
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 text-center border border-purple-200">
-            <div className="text-2xl font-bold text-purple-900">{todaysIdea.founderFit}</div>
-            <div className="text-sm text-purple-700">Founder Fit</div>
-          </div>
-          <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 text-center border border-orange-200">
-            <div className="text-2xl font-bold text-orange-900">{getMarketDemandLabel(todaysIdea.userComplaints)}</div>
-            <div className="text-sm text-orange-700">Market Demand</div>
-          </div>
-        </div>
+        <Grid mb="xl">
+          <Grid.Col span={6}>
+            <Card 
+              withBorder 
+              radius="md" 
+              p="md" 
+              style={{ 
+                background: 'linear-gradient(135deg, #0F4C3A 0%, #006B3C 100%)',
+                borderColor: '#006B3C'
+              }}
+            >
+              <Text ta="center" size="xl" fw={700} c="#F5F5F5">
+                {formatRevenue(todaysIdea.yearOneRevenue)}
+              </Text>
+              <Text ta="center" size="sm" c="#E5E5E5">Year 1 Revenue</Text>
+            </Card>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Card 
+              withBorder 
+              radius="md" 
+              p="md" 
+              style={{ 
+                background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%)',
+                borderColor: '#C5A46D'
+              }}
+            >
+              <Text ta="center" size="xl" fw={700} c="#C5A46D">
+                {todaysIdea.buildTime}w
+              </Text>
+              <Text ta="center" size="sm" c="#E5E5E5">Time to Build</Text>
+            </Card>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Card 
+              withBorder 
+              radius="md" 
+              p="md" 
+              style={{ 
+                background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%)',
+                borderColor: '#C5A46D'
+              }}
+            >
+              <Text ta="center" size="xl" fw={700} c="#C5A46D">
+                {todaysIdea.founderFit}
+              </Text>
+              <Text ta="center" size="sm" c="#E5E5E5">Founder Fit</Text>
+            </Card>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Card 
+              withBorder 
+              radius="md" 
+              p="md" 
+              style={{ 
+                background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%)',
+                borderColor: '#C5A46D'
+              }}
+            >
+              <Text ta="center" size="xl" fw={700} c="#C5A46D">
+                {getMarketDemandLabel(todaysIdea.userComplaints)}
+              </Text>
+              <Text ta="center" size="sm" c="#E5E5E5">Market Demand</Text>
+            </Card>
+          </Grid.Col>
+        </Grid>
 
         {/* Why Now Section */}
         {todaysIdea.why_now && (
-          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-4 border border-amber-200 mb-6">
-            <h4 className="text-sm font-semibold text-amber-900 mb-2 flex items-center">
-              <svg className="w-4 h-4 text-amber-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Why This Opportunity is Hot
-            </h4>
-            <p className="text-sm text-amber-800 leading-relaxed">
+          <Alert 
+            style={{ 
+              backgroundColor: '#2A2A2A',
+              borderColor: '#C5A46D',
+              color: '#F5F5F5'
+            }}
+            variant="light" 
+            radius="md" 
+            mb="xl"
+            icon={<IconClock size={16} color="#C5A46D" />}
+            title="Why This Opportunity is Hot"
+          >
+            <Text size="sm" lh={1.6} c="#E5E5E5">
               {todaysIdea.why_now}
-            </p>
-          </div>
+            </Text>
+          </Alert>
         )}
 
         {/* Call to Action */}
-        <button
-          onClick={() => onGetStarted('pro')}
-          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+        <Button
+          fullWidth
+          size="lg"
+          radius="md"
+          style={{
+            background: 'linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)',
+            color: '#F5F5F5',
+            border: 'none',
+            fontWeight: 600,
+            transition: 'all 0.2s'
+          }}
+          onClick={() => onGetStarted?.('pro')}
         >
           Get Full Analysis & Implementation Plan
-        </button>
+        </Button>
 
         {/* Trust Indicators */}
-        <div className="flex items-center justify-center space-x-6 mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
-          <div className="flex items-center">
-            <svg className="w-3 h-3 text-green-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            AI Validated
-          </div>
-          <div className="flex items-center">
-            <svg className="w-3 h-3 text-blue-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            Real Demand
-          </div>
-          <div className="flex items-center">
-            <svg className="w-3 h-3 text-purple-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Updated Daily
-          </div>
-        </div>
-      </div>
+        <Group justify="center" gap="xl" pt="lg" mt="md" style={{ borderTop: '1px solid #404040' }}>
+          <Group gap="xs">
+            <IconCheck size={12} color="#006B3C" />
+            <Text size="xs" c="#CCCCCC">AI Validated</Text>
+          </Group>
+          <Group gap="xs">
+            <IconBolt size={12} color="#006B3C" />
+            <Text size="xs" c="#CCCCCC">Real Demand</Text>
+          </Group>
+          <Group gap="xs">
+            <IconClock size={12} color="#C5A46D" />
+            <Text size="xs" c="#CCCCCC">Updated Daily</Text>
+          </Group>
+        </Group>
+      </Card.Section>
 
       {/* Score Breakdown Modal */}
-      {showScoreBreakdown && todaysIdea && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <div className="flex items-center">
-                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl text-sm font-bold mr-3 ${getScoreColor(todaysIdea.score)}`}>
-                  {todaysIdea.score}
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{todaysIdea.name}</h3>
-                  <p className="text-sm text-gray-600">Score breakdown and calculation details</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowScoreBreakdown(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      <Modal
+        opened={showScoreBreakdown}
+        onClose={() => setShowScoreBreakdown(false)}
+        title={
+          <Group>
+            <ActionIcon
+              size="lg"
+              radius="md"
+              {...getScoreColor(todaysIdea.score)}
+              style={{ fontSize: '14px', fontWeight: 700 }}
+            >
+              {todaysIdea.score}
+            </ActionIcon>
+            <div>
+              <Text size="lg" fw={600}>{todaysIdea.name}</Text>
+              <Text size="sm" c="dimmed">Score breakdown and calculation details</Text>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
-              <ScoreBreakdown idea={todaysIdea} />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+          </Group>
+        }
+        size="xl"
+        radius="md"
+        centered
+        styles={{
+          body: { maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }
+        }}
+      >
+        <ScoreBreakdown idea={todaysIdea} />
+      </Modal>
+    </Card>
   )
 }

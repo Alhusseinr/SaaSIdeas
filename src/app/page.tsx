@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Center, Loader, Box } from '@mantine/core'
 import { useAuth } from '@/hooks/useAuth'
 import { PricingProvider, usePricingActions } from '@/contexts/PricingContext'
 import LoginForm from '@/components/LoginForm'
@@ -17,9 +18,11 @@ function AppContent() {
 
   if (loading || pricingLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <Box style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-gray-0)' }}>
+        <Center h="100vh">
+          <Loader size="xl" color="blue" />
+        </Center>
+      </Box>
     )
   }
 
@@ -33,7 +36,8 @@ function AppContent() {
     }
     return <LandingPage 
       onGetStarted={(planId) => {
-        setSelectedPlan(planId)
+        console.log('onGetStarted called with planId:', planId)
+        setSelectedPlan(planId || 'professional') // Default to professional plan
         setLoginMode('signup')
         setShowLogin(true)
       }}

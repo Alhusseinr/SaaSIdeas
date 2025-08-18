@@ -1,6 +1,35 @@
 'use client'
 
 import { useState } from 'react'
+import {
+  Container,
+  Card,
+  Title,
+  Text,
+  Button,
+  TextInput,
+  PasswordInput,
+  Stack,
+  Group,
+  Alert,
+  Badge,
+  Box,
+  ThemeIcon,
+  SimpleGrid,
+  Center,
+  Loader,
+  Anchor
+} from '@mantine/core'
+import {
+  IconBolt,
+  IconUser,
+  IconMail,
+  IconLock,
+  IconCheck,
+  IconX,
+  IconShield,
+  IconBrain
+} from '@tabler/icons-react'
 import { supabase } from '@/lib/supabase'
 
 interface LoginFormProps {
@@ -51,14 +80,15 @@ export default function LoginForm({ onSuccess, selectedPlan, initialMode = 'sign
         if (error) {
           setError(error.message)
         } else {
-          // Store selected plan in localStorage for post-verification setup
-          if (selectedPlan) {
-            localStorage.setItem('pendingPlan', selectedPlan)
-          }
-          setMessage('Account created successfully! Please check your email to verify your account. After verification, you\'ll complete payment to access your dashboard.')
+          setMessage('Success! Check your email to confirm your account.')
+          // For now, we'll simulate email confirmation and proceed
+          // In production, user would need to click email confirmation link
+          setTimeout(() => {
+            onSuccess()
+          }, 2000)
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
@@ -70,289 +100,268 @@ export default function LoginForm({ onSuccess, selectedPlan, initialMode = 'sign
         }
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      setError('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const switchMode = () => {
-    setMode(mode === 'signin' ? 'signup' : 'signin')
-    setError('')
-    setMessage('')
+  const planInfo = {
+    starter: { name: 'Starter', price: '$49', features: ['25 validations/month', 'Basic AI analysis', 'Reddit integration'] },
+    professional: { name: 'Professional', price: '$149', features: ['100 validations/month', 'Advanced AI (GPT-4)', 'Multi-platform data', 'Priority support'] },
+    pro: { name: 'Professional', price: '$149', features: ['100 validations/month', 'Advanced AI (GPT-4)', 'Multi-platform data', 'Priority support'] },
+    enterprise: { name: 'Enterprise', price: '$449', features: ['Unlimited validations', 'Custom AI training', 'White-label options', 'Dedicated support'] }
   }
 
-  const getPlanInfo = (planId: string) => {
-    const plans = {
-      starter: { name: 'Starter', price: '$49', features: ['25 validations/month', 'AI analysis', 'Email support'] },
-      pro: { name: 'Pro', price: '$99', features: ['100 validations/month', 'Advanced AI', 'Priority support'] },
-      enterprise: { name: 'Enterprise', price: '$199', features: ['Unlimited validations', 'Custom AI', 'Dedicated manager'] }
-    }
-    return plans[planId as keyof typeof plans] || plans.pro
-  }
-
-  const planInfo = selectedPlan ? getPlanInfo(selectedPlan) : null
+  const currentPlan = planInfo[selectedPlan as keyof typeof planInfo] || planInfo.professional
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <Box style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0D0D0D 0%, #1A1A1A 100%)' }}>
       {/* Header */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
+      <Box 
+        style={{ 
+          backgroundColor: 'rgba(26, 26, 26, 0.9)', 
+          backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid #404040',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100
+        }}
+        h={70}
+      >
+        <Container size="xl" h="100%">
+          <Group justify="space-between" h="100%">
+            <Group>
+              <ThemeIcon
+                size="lg"
+                radius="md"
+                style={{ 
+                  background: 'linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)',
+                  color: '#F5F5F5'
+                }}
+              >
+                <IconBolt size={20} />
+              </ThemeIcon>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">IdeaValidator</h1>
-                <p className="text-sm text-gray-600 hidden sm:block">AI-Powered SaaS Discovery Platform</p>
+                <Title order={4} c="#F5F5F5">IdeaValidator</Title>
+                <Text size="sm" c="#CCCCCC" visibleFrom="sm">AI-Powered SaaS Discovery Platform</Text>
               </div>
-            </div>
-            
-            <button
-              onClick={() => window.location.href = '/'}
-              className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors"
+            </Group>
+
+            <Anchor
+              href="/"
+              c="#C5A46D"
+              size="sm"
+              fw={500}
             >
               ← Back to Home
-            </button>
-          </div>
-        </div>
-      </header>
+            </Anchor>
+          </Group>
+        </Container>
+      </Box>
 
       {/* Main Content */}
-      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
-        <div className="max-w-md w-full space-y-8">
-          {/* Auth Card */}
-          <div className="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
-            {/* Header Section */}
-            <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-8 text-center border-b border-gray-200">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                {mode === 'signin' ? 'Welcome back!' : 'Create your account'}
-              </h2>
-              <p className="text-gray-600 mb-4">
-                {mode === 'signin' 
-                  ? 'Sign in to access your SaaS Ideas Dashboard' 
-                  : 'Join thousands of entrepreneurs discovering SaaS opportunities'
+      <Container size="sm" pt={100} pb={50}>
+        <Center>
+          <Card radius="xl" shadow="xl" withBorder w="100%" maw={500} style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
+            {/* Header */}
+            <Card.Section
+              p="xl"
+              style={{
+                background: 'linear-gradient(to right, #1A1A1A, #2A2A2A)',
+                textAlign: 'center',
+                borderBottom: '1px solid #404040'
+              }}
+            >
+              <ThemeIcon
+                size="xl"
+                radius="lg"
+                style={{ 
+                  background: 'linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)',
+                  color: '#F5F5F5'
+                }}
+                mx="auto"
+                mb="md"
+              >
+                <IconUser size={32} />
+              </ThemeIcon>
+              <Title order={2} mb="xs" c="#F5F5F5">
+                {mode === 'signup' ? 'Create Your Account' : 'Welcome Back'}
+              </Title>
+              <Text c="#E5E5E5" mb="md">
+                {mode === 'signup' 
+                  ? 'Join thousands discovering profitable SaaS opportunities'
+                  : 'Sign in to continue your market intelligence journey'
                 }
-              </p>
-              
-              {/* Selected Plan Display */}
-              {planInfo && mode === 'signup' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-blue-900">Selected Plan: {planInfo.name}</h3>
-                    <span className="text-lg font-bold text-blue-600">{planInfo.price}/month</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {planInfo.features.map((feature, index) => (
-                      <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              </Text>
+
+              {/* Plan Info for Signup */}
+              {mode === 'signup' && selectedPlan && (
+                <Card withBorder radius="md" p="md" style={{ backgroundColor: '#2A2A2A', borderColor: '#006B3C' }}>
+                  <Group justify="space-between" mb="sm">
+                    <Title order={5} c="#006B3C">Selected Plan: {currentPlan.name}</Title>
+                    <Text fw={700} c="#006B3C">{currentPlan.price}/month</Text>
+                  </Group>
+                  <Group gap="xs" mb="sm">
+                    {currentPlan.features.map((feature, index) => (
+                      <Badge key={index} style={{ backgroundColor: '#0F4C3A', color: '#F5F5F5' }} size="sm">
                         {feature}
-                      </span>
+                      </Badge>
                     ))}
-                  </div>
-                  <p className="text-xs text-blue-700 mt-2">Complete signup to proceed to secure payment</p>
-                </div>
+                  </Group>
+                  <Text size="xs" c="#006B3C">
+                    Complete signup to proceed to secure payment
+                  </Text>
+                </Card>
               )}
-            </div>
+            </Card.Section>
 
             {/* Form */}
-            <div className="px-6 py-8">
-              <form className="space-y-6" onSubmit={handleSubmit}>
-                <div className="space-y-5">
+            <Card.Section p="xl">
+              <form onSubmit={handleSubmit}>
+                <Stack gap="md">
                   {mode === 'signup' && (
-                    <div>
-                      <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
-                        Full Name
-                      </label>
-                      <input
-                        id="fullName"
-                        name="fullName"
-                        type="text"
-                        autoComplete="name"
-                        required
-                        placeholder="Enter your full name"
-                        className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white transition-all duration-200"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                      />
-                    </div>
+                    <TextInput
+                      label="Full Name"
+                      placeholder="Enter your full name"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      leftSection={<IconUser size={16} />}
+                      radius="md"
+                    />
                   )}
 
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                      Email address
-                    </label>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      placeholder="Enter your email"
-                      className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white transition-all duration-200"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
+                  <TextInput
+                    label="Email Address"
+                    placeholder="Enter your email"
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    leftSection={<IconMail size={16} />}
+                    radius="md"
+                  />
 
-                  <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                      Password
-                    </label>
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                      required
-                      placeholder="Enter your password"
-                      className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white transition-all duration-200"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
+                  <PasswordInput
+                    label="Password"
+                    placeholder="Enter your password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    leftSection={<IconLock size={16} />}
+                    radius="md"
+                  />
 
                   {mode === 'signup' && (
-                    <div>
-                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                        Confirm Password
-                      </label>
-                      <input
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        type="password"
-                        autoComplete="new-password"
-                        required
-                        placeholder="Confirm your password"
-                        className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white transition-all duration-200"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                      />
-                    </div>
+                    <PasswordInput
+                      label="Confirm Password"
+                      placeholder="Confirm your password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      leftSection={<IconLock size={16} />}
+                      radius="md"
+                    />
                   )}
-                </div>
 
-                {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm text-red-700">{error}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  {error && (
+                    <Alert
+                      variant="light"
+                      color="red"
+                      title="Error"
+                      icon={<IconX size={16} />}
+                    >
+                      {error}
+                    </Alert>
+                  )}
 
-                {message && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm text-green-700">{message}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  {message && (
+                    <Alert
+                      variant="light"
+                      color="green"
+                      title="Success"
+                      icon={<IconCheck size={16} />}
+                    >
+                      {message}
+                    </Alert>
+                  )}
 
-                <div>
-                  <button
+                  <Button
                     type="submit"
-                    disabled={loading}
-                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:transform-none font-medium"
+                    size="lg"
+                    fullWidth
+                    loading={loading}
+                    style={{
+                      background: 'linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)',
+                      color: '#F5F5F5',
+                      border: 'none'
+                    }}
+                    radius="md"
                   >
-                    {loading ? (
-                      <div className="flex items-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                        {mode === 'signin' ? 'Signing in...' : 'Creating account...'}
-                      </div>
-                    ) : (
-                      mode === 'signin' ? 'Sign In' : 'Create Account'
-                    )}
-                  </button>
-                </div>
+                    {loading ? 'Processing...' : (mode === 'signup' ? 'Create Account' : 'Sign In')}
+                  </Button>
 
-                {mode === 'signup' && (
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500">
-                      By creating an account, you agree to our Terms of Service and Privacy Policy
-                    </p>
-                  </div>
-                )}
+                  <Text size="xs" c="#CCCCCC" ta="center">
+                    By continuing, you agree to our Terms of Service and Privacy Policy
+                  </Text>
+                </Stack>
               </form>
-            </div>
+            </Card.Section>
 
-            {/* Switch Mode */}
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-              <div className="text-center">
-                <p className="text-sm text-gray-600">
-                  {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}
-                  {' '}
-                  <button
-                    onClick={switchMode}
-                    className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
-                  >
-                    {mode === 'signin' ? 'Sign up' : 'Sign in'}
-                  </button>
-                </p>
-                
-                <div className="mt-4">
-                  <button
-                    onClick={() => window.location.href = '/'}
-                    className="text-gray-500 hover:text-gray-700 text-sm transition-colors"
-                  >
-                    ← Back to Home
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+            {/* Footer */}
+            <Card.Section
+              p="md"
+              style={{
+                backgroundColor: '#2A2A2A',
+                borderTop: '1px solid #404040',
+                textAlign: 'center'
+              }}
+            >
+              <Text size="sm" c="#E5E5E5">
+                {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}{' '}
+                <Anchor
+                  fw={500}
+                  onClick={() => {
+                    setMode(mode === 'signup' ? 'signin' : 'signup')
+                    setError('')
+                    setMessage('')
+                  }}
+                  style={{ cursor: 'pointer', color: '#C5A46D' }}
+                >
+                  {mode === 'signup' ? 'Sign in' : 'Sign up'}
+                </Anchor>
+              </Text>
+            </Card.Section>
+          </Card>
+        </Center>
 
-          {/* Features */}
-          <div className="text-center">
-            <div className="grid grid-cols-3 gap-4 text-xs text-gray-500">
-              <div className="flex flex-col items-center">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
-                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <span>AI-Powered</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mb-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <span>Secure</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
-                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <span>Fast</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+        {/* Trust Indicators */}
+        <Center mt="xl">
+          <SimpleGrid cols={3} spacing="xl" w="100%" maw={400}>
+            <Stack align="center" gap="xs">
+              <ThemeIcon size="lg" radius="md" variant="light" color="blue">
+                <IconShield size={20} />
+              </ThemeIcon>
+              <Text size="xs" c="dimmed" ta="center">Secure & Encrypted</Text>
+            </Stack>
+            <Stack align="center" gap="xs">
+              <ThemeIcon size="lg" radius="md" variant="light" color="green">
+                <IconBrain size={20} />
+              </ThemeIcon>
+              <Text size="xs" c="dimmed" ta="center">AI-Powered Analysis</Text>
+            </Stack>
+            <Stack align="center" gap="xs">
+              <ThemeIcon size="lg" radius="md" variant="light" color="purple">
+                <IconBolt size={20} />
+              </ThemeIcon>
+              <Text size="xs" c="dimmed" ta="center">Instant Insights</Text>
+            </Stack>
+          </SimpleGrid>
+        </Center>
+      </Container>
+    </Box>
   )
 }

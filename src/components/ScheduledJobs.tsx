@@ -1,6 +1,34 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import {
+  Container,
+  Card,
+  Title,
+  Text,
+  Button,
+  Stack,
+  Group,
+  Badge,
+  Grid,
+  Center,
+  ThemeIcon,
+  Alert,
+  List,
+  Loader,
+  Box,
+  Code
+} from '@mantine/core'
+import {
+  IconClock,
+  IconRefresh,
+  IconPlayerPlay,
+  IconAlertCircle,
+  IconInfoCircle,
+  IconCalendar,
+  IconSettings,
+  IconDatabase
+} from '@tabler/icons-react'
 import { supabase, invokeEdgeFunction } from '@/lib/supabase'
 
 interface ScheduledJob {
@@ -210,19 +238,19 @@ export default function ScheduledJobs() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800'
-      case 'inactive': return 'bg-gray-100 text-gray-800'
-      case 'error': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'active': return '#006B3C'
+      case 'inactive': return '#666666'
+      case 'error': return '#FF6B6B'
+      default: return '#666666'
     }
   }
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'pg_cron': return 'bg-blue-100 text-blue-800'
-      case 'edge_function': return 'bg-purple-100 text-purple-800'
-      case 'external': return 'bg-orange-100 text-orange-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'pg_cron': return '#006B3C'
+      case 'edge_function': return '#C5A46D'
+      case 'external': return '#FF8C00'
+      default: return '#666666'
     }
   }
 
@@ -236,136 +264,182 @@ export default function ScheduledJobs() {
   }, [])
 
   return (
-    <div className="bg-white shadow-sm rounded-lg">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Scheduled Jobs</h2>
-            <p className="text-sm text-gray-600 mt-1">Monitor and manage your automated tasks</p>
-          </div>
-          <button
-            onClick={refreshJobs}
-            disabled={loading}
-            className="bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 text-gray-800 px-3 py-1 rounded text-sm font-medium transition-colors"
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
-      </div>
+    <Container size="xl">
+      <Stack gap="xl">
+        {/* Header */}
+        <Card radius="xl" withBorder style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
+          <Group justify="space-between">
+            <Group>
+              <ThemeIcon size="lg" radius="md" style={{ backgroundColor: '#006B3C', color: '#F5F5F5' }}>
+                <IconClock size={20} />
+              </ThemeIcon>
+              <div>
+                <Title order={2} c="#F5F5F5">Scheduled Jobs</Title>
+                <Text c="#CCCCCC" size="sm">Monitor and manage your automated tasks</Text>
+              </div>
+            </Group>
+            <Button
+              onClick={refreshJobs}
+              loading={loading}
+              leftSection={<IconRefresh size={16} />}
+              style={{
+                backgroundColor: '#2A2A2A',
+                color: '#E5E5E5',
+                borderColor: '#404040'
+              }}
+            >
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </Group>
+        </Card>
 
-      <div className="p-6">
+        {/* Error Alert */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Error"
+            color="red"
+            radius="md"
+            style={{
+              backgroundColor: '#2A2A2A',
+              borderColor: '#FF6B6B',
+              color: '#F5F5F5'
+            }}
+          >
+            <Text c="#FF6B6B">{error}</Text>
+          </Alert>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Jobs Grid */}
+        <Grid>
           {jobs.map((job) => (
-            <div key={job.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-              {/* Header Section */}
-              <div className="flex items-start space-x-3 mb-3">
-                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-lg flex-shrink-0">
-                  {getJobIcon(job.id)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-gray-900 truncate">{job.name}</h3>
-                  <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{job.description}</p>
-                </div>
-              </div>
+            <Grid.Col key={job.id} span={{ base: 12, sm: 6, lg: 4, xl: 3 }}>
+              <Card radius="xl" withBorder style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
+                {/* Header Section */}
+                <Group mb="md">
+                  <ThemeIcon 
+                    size="lg" 
+                    radius="md" 
+                    style={{ backgroundColor: '#2A2A2A', color: '#F5F5F5' }}
+                  >
+                    <Text size="lg">{getJobIcon(job.id)}</Text>
+                  </ThemeIcon>
+                  <Box flex={1}>
+                    <Text fw={600} c="#F5F5F5" size="sm" lineClamp={1}>{job.name}</Text>
+                    <Text c="#CCCCCC" size="xs" lineClamp={2} lh={1.4}>{job.description}</Text>
+                  </Box>
+                </Group>
 
-              {/* Schedule Section */}
-              <div className="text-center mb-3">
-                <span className="text-xs text-gray-600 bg-gray-50 px-3 py-1 rounded-full">
-                  ⏰ {getHumanReadableSchedule(job.schedule)}
-                </span>
-              </div>
+                {/* Schedule Section */}
+                <Center mb="md">
+                  <Badge
+                    style={{ backgroundColor: '#2A2A2A', color: '#E5E5E5' }}
+                    leftSection={<IconCalendar size={12} />}
+                    size="sm"
+                  >
+                    {getHumanReadableSchedule(job.schedule)}
+                  </Badge>
+                </Center>
 
-              {/* Info Section */}
-              <div className="flex items-center justify-center mb-4 text-xs text-gray-500">
-                <span className="truncate">📅 {formatDateTime(job.last_run)}</span>
-              </div>
+                {/* Last Run Info */}
+                <Center mb="lg">
+                  <Text size="xs" c="#666666">
+                    📅 Last run: {formatDateTime(job.last_run)}
+                  </Text>
+                </Center>
 
-              {/* Action Button */}
-              {job.type === 'edge_function' && job.function_name ? (
-                <button
-                  onClick={() => triggerJobManually(job)}
-                  disabled={triggeringJobs.has(job.id) || job.status !== 'active'}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center space-x-2"
-                  title={job.status !== 'active' ? 'Job is not active' : 'Run job now'}
-                >
-                  {triggeringJobs.has(job.id) ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                      <span>Running...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-6L8 8" />
-                      </svg>
-                      <span>Run Now</span>
-                    </>
-                  )}
-                </button>
-              ) : (
-                <div className="w-full bg-gray-50 text-gray-500 italic px-3 py-2 rounded-lg text-xs flex items-center justify-center space-x-2">
-                  <span>Auto-scheduled</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
-                    {job.status}
-                  </span>
-                </div>
-              )}
-            </div>
+                {/* Action Button */}
+                {job.type === 'edge_function' && job.function_name ? (
+                  <Button
+                    onClick={() => triggerJobManually(job)}
+                    disabled={triggeringJobs.has(job.id) || job.status !== 'active'}
+                    fullWidth
+                    size="sm"
+                    radius="md"
+                    leftSection={
+                      triggeringJobs.has(job.id) ? (
+                        <Loader size="xs" color="#F5F5F5" />
+                      ) : (
+                        <IconPlayerPlay size={14} />
+                      )
+                    }
+                    style={{
+                      backgroundColor: job.status !== 'active' ? '#666666' : '#006B3C',
+                      color: '#F5F5F5',
+                      border: 'none'
+                    }}
+                  >
+                    {triggeringJobs.has(job.id) ? 'Running...' : 'Run Now'}
+                  </Button>
+                ) : (
+                  <Group justify="space-between">
+                    <Text size="xs" c="#666666" ta="center" flex={1}>Auto-scheduled</Text>
+                    <Badge
+                      style={{
+                        backgroundColor: getStatusColor(job.status),
+                        color: '#F5F5F5'
+                      }}
+                      size="xs"
+                    >
+                      {job.status}
+                    </Badge>
+                  </Group>
+                )}
+              </Card>
+            </Grid.Col>
           ))}
-        </div>
+        </Grid>
 
+        {/* Empty State */}
         {jobs.length === 0 && !loading && (
-          <div className="text-center py-16">
-            <div className="mx-auto w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-              <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Scheduled Jobs</h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Set up automated tasks to run your Edge Functions on schedule.
-            </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 max-w-2xl mx-auto">
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
+          <Card radius="xl" withBorder style={{ backgroundColor: '#1A1A1A', borderColor: '#404040' }}>
+            <Center p="xl">
+              <Stack align="center" gap="xl" maw={600}>
+                <ThemeIcon size={80} radius="xl" style={{ backgroundColor: '#2A2A2A', color: '#CCCCCC' }}>
+                  <IconClock size={40} />
+                </ThemeIcon>
+                <div style={{ textAlign: 'center' }}>
+                  <Title order={3} c="#F5F5F5" mb="sm">No Scheduled Jobs</Title>
+                  <Text c="#CCCCCC" mb="lg">
+                    Set up automated tasks to run your Edge Functions on schedule.
+                  </Text>
                 </div>
-                <div className="text-left">
-                  <h4 className="font-semibold text-blue-900 mb-2">Quick Setup Guide</h4>
-                  <ol className="space-y-2 text-sm text-blue-800">
-                    <li className="flex items-start space-x-2">
-                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">1</span>
-                      <span>Go to your Supabase Dashboard → Database → Extensions</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">2</span>
-                      <span>Enable the <code className="bg-blue-100 px-1 rounded">pg_cron</code> extension</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">3</span>
-                      <span>Run the SQL commands provided in the setup guide</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="bg-blue-200 text-blue-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">4</span>
-                      <span>Refresh this page to see your scheduled jobs</span>
-                    </li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-          </div>
+                
+                <Card withBorder radius="md" p="lg" style={{ backgroundColor: '#2A2A2A', borderColor: '#006B3C' }}>
+                  <Group align="flex-start" gap="md">
+                    <ThemeIcon size="lg" radius="md" style={{ backgroundColor: '#006B3C', color: '#F5F5F5' }}>
+                      <IconInfoCircle size={20} />
+                    </ThemeIcon>
+                    <Box flex={1}>
+                      <Title order={4} c="#F5F5F5" mb="md">Quick Setup Guide</Title>
+                      <List
+                        spacing="sm"
+                        size="sm"
+                        icon={<Badge size="xs" style={{ backgroundColor: '#006B3C', color: '#F5F5F5' }}>•</Badge>}
+                      >
+                        <List.Item>
+                          <Text c="#E5E5E5" size="sm">Go to your Supabase Dashboard → Database → Extensions</Text>
+                        </List.Item>
+                        <List.Item>
+                          <Text c="#E5E5E5" size="sm">
+                            Enable the <Code style={{ backgroundColor: '#1A1A1A', color: '#C5A46D' }}>pg_cron</Code> extension
+                          </Text>
+                        </List.Item>
+                        <List.Item>
+                          <Text c="#E5E5E5" size="sm">Run the SQL commands provided in the setup guide</Text>
+                        </List.Item>
+                        <List.Item>
+                          <Text c="#E5E5E5" size="sm">Refresh this page to see your scheduled jobs</Text>
+                        </List.Item>
+                      </List>
+                    </Box>
+                  </Group>
+                </Card>
+              </Stack>
+            </Center>
+          </Card>
         )}
-      </div>
-    </div>
+      </Stack>
+    </Container>
   )
 }

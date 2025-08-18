@@ -1,6 +1,25 @@
 "use client";
 
 import { useState } from 'react'
+import {
+  Card,
+  Button,
+  Stack,
+  Group,
+  Text,
+  ThemeIcon,
+  Progress,
+  Badge,
+  Collapse,
+  Alert
+} from '@mantine/core'
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconTarget,
+  IconInfoCircle,
+  IconCheck
+} from '@tabler/icons-react'
 import { SaasIdeaItem } from '@/lib/supabase'
 
 interface ScoreBreakdownProps {
@@ -98,125 +117,134 @@ export default function ScoreBreakdown({ idea }: ScoreBreakdownProps) {
 
   const getScoreColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100
-    if (percentage >= 80) return "bg-green-500"
-    if (percentage >= 60) return "bg-blue-500" 
-    if (percentage >= 40) return "bg-yellow-500"
-    return "bg-red-500"
-  }
-
-  const getTextColor = (score: number, maxScore: number) => {
-    const percentage = (score / maxScore) * 100
-    if (percentage >= 80) return "text-green-700"
-    if (percentage >= 60) return "text-blue-700"
-    if (percentage >= 40) return "text-yellow-700" 
-    return "text-red-700"
+    if (percentage >= 80) return "green"
+    if (percentage >= 60) return "blue" 
+    if (percentage >= 40) return "yellow"
+    return "red"
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <button
+    <Card radius="lg" withBorder>
+      <Button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center">
-          <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-purple-100 to-indigo-100 border border-purple-200 mr-3">
-            <span className="text-lg font-bold text-purple-700">{actualScore}</span>
-          </div>
-          <div>
-            <div className="font-medium text-gray-900">Validation Score Breakdown</div>
-            <div className="text-sm text-gray-600">How this score was calculated</div>
-          </div>
-        </div>
-        <svg 
-          className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+        fullWidth
+        variant="subtle"
+        justify="space-between"
+        rightSection={isOpen ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+        leftSection={
+          <Group>
+            <ThemeIcon
+              size="lg"
+              radius="md"
+              variant="gradient"
+              gradient={{ from: 'purple', to: 'indigo', deg: 135 }}
+            >
+              <Text fw={700} c="white">{actualScore}</Text>
+            </ThemeIcon>
+            <div>
+              <Text fw={500}>Validation Score Breakdown</Text>
+              <Text size="sm" c="dimmed">How this score was calculated</Text>
+            </div>
+          </Group>
+        }
+      />
 
-      {isOpen && (
-        <div className="px-4 pb-4 space-y-4">
+      <Collapse in={isOpen}>
+        <Stack gap="md" pt="md">
           {/* Score Components */}
-          <div className="space-y-3">
-            {scoreComponents.map((component, index) => (
-              <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <h5 className="text-sm font-medium text-gray-900">{component.name}</h5>
-                  <div className="flex items-center">
-                    <span className={`text-sm font-bold ${getTextColor(component.score, component.maxScore)} mr-2`}>
-                      {component.score}/{component.maxScore}
-                    </span>
-                    <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full ${getScoreColor(component.score, component.maxScore)} transition-all duration-300`}
-                        style={{ width: `${(component.score / component.maxScore) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-600 mb-2">{component.description}</p>
-                <div className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1 border border-blue-100">
-                  <strong>Calculation:</strong> {component.calculation}
-                </div>
-              </div>
-            ))}
-          </div>
+          {scoreComponents.map((component, index) => (
+            <Card key={index} p="md" radius="md" withBorder style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
+              <Group justify="space-between" mb="xs">
+                <Text fw={500} size="sm">{component.name}</Text>
+                <Group gap="xs">
+                  <Badge color={getScoreColor(component.score, component.maxScore)} variant="light">
+                    {component.score}/{component.maxScore}
+                  </Badge>
+                </Group>
+              </Group>
+              
+              <Progress 
+                value={(component.score / component.maxScore) * 100} 
+                color={getScoreColor(component.score, component.maxScore)}
+                size="sm"
+                mb="xs"
+              />
+              
+              <Text size="xs" c="dimmed" mb="xs">{component.description}</Text>
+              
+              <Alert
+                variant="light"
+                color="blue"
+                icon={<IconInfoCircle size={14} />}
+              >
+                <Text size="xs">
+                  <Text span fw={500}>Calculation:</Text> {component.calculation}
+                </Text>
+              </Alert>
+            </Card>
+          ))}
 
           {/* Total Score Summary */}
-          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
-            <div className="flex items-center justify-between mb-2">
-              <h5 className="text-sm font-medium text-purple-900">Total Validation Score</h5>
-              <span className="text-lg font-bold text-purple-700">{actualScore}/100</span>
-            </div>
-            <div className="w-full h-3 bg-white rounded-full overflow-hidden border border-purple-200">
-              <div 
-                className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500"
-                style={{ width: `${actualScore}%` }}
-              />
-            </div>
-            <div className="mt-2 text-xs text-purple-800">
+          <Card
+            p="md"
+            radius="md"
+            style={{
+              background: 'linear-gradient(to right, var(--mantine-color-purple-0), var(--mantine-color-indigo-0))'
+            }}
+          >
+            <Group justify="space-between" mb="xs">
+              <Text fw={500} c="purple">Total Validation Score</Text>
+              <Text size="lg" fw={700} c="purple">{actualScore}/100</Text>
+            </Group>
+            
+            <Progress 
+              value={actualScore} 
+              color="purple"
+              size="md"
+              mb="sm"
+            />
+            
+            <Stack gap="xs">
               {totalCalculatedScore !== actualScore && (
-                <div className="mb-1">
-                  <strong>Note:</strong> Calculated components total {totalCalculatedScore}/100. 
+                <Text size="xs" c="purple">
+                  <Text span fw={500}>Note:</Text> Calculated components total {totalCalculatedScore}/100. 
                   Final score of {actualScore} includes additional AI analysis factors.
-                </div>
+                </Text>
               )}
-              <div>
-                <strong>AI Analysis:</strong> This score combines quantitative metrics with AI evaluation of market sentiment, 
+              <Text size="xs" c="purple">
+                <Text span fw={500}>AI Analysis:</Text> This score combines quantitative metrics with AI evaluation of market sentiment, 
                 competitive positioning, and solution viability based on real user feedback.
-              </div>
-            </div>
-          </div>
+              </Text>
+            </Stack>
+          </Card>
 
           {/* Methodology Info */}
-          <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-            <h6 className="text-sm font-medium text-amber-900 mb-1 flex items-center">
-              <svg className="w-4 h-4 text-amber-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Scoring Methodology
-            </h6>
-            <p className="text-xs text-amber-800">
+          <Alert
+            variant="light"
+            color="orange"
+            icon={<IconInfoCircle size={16} />}
+            title="Scoring Methodology"
+          >
+            <Text size="xs">
               Scores are calculated using a combination of quantitative data analysis (complaint post counts, sentiment analysis, keyword matching) 
               and qualitative AI evaluation of market opportunity, competitive landscape, and solution fit. The final score reflects both 
               data-driven insights and expert market analysis.
-            </p>
+            </Text>
             {idea.representative_post_ids && idea.representative_post_ids.length > 1 && (
-              <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
-                <div className="flex items-center text-xs text-blue-800">
-                  <svg className="w-3 h-3 text-blue-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <strong>Pattern-Based Idea:</strong> This solution addresses common problems found across {idea.representative_post_ids.length} different user complaints, indicating strong market demand.
-                </div>
-              </div>
+              <Alert
+                variant="light"
+                color="blue"
+                mt="xs"
+                icon={<IconCheck size={14} />}
+              >
+                <Text size="xs">
+                  <Text span fw={500}>Pattern-Based Idea:</Text> This solution addresses common problems found across {idea.representative_post_ids.length} different user complaints, indicating strong market demand.
+                </Text>
+              </Alert>
             )}
-          </div>
-        </div>
-      )}
-    </div>
+          </Alert>
+        </Stack>
+      </Collapse>
+    </Card>
   )
 }

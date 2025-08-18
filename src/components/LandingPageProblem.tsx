@@ -66,7 +66,7 @@ export default function LandingPageProblem({ onGetStarted }: LandingPageProblemP
         <div className="text-center mb-8">
           <div className="inline-flex items-center px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200 mb-4">
             <div className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></div>
-            <span className="text-sm font-medium text-gray-700">Updated {new Date().toLocaleDateString()}</span>
+            <span className="text-sm font-medium text-gray-700">Updated {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
             Today's Validated Opportunity
