@@ -1,22 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Center, Loader, Box } from '@mantine/core'
 import { useAuth } from '@/hooks/useAuth'
-import { PricingProvider, usePricingActions } from '@/contexts/PricingContext'
+import { usePricingActions } from '@/contexts/PricingContext'
 import LoginForm from '@/components/LoginForm'
-import Dashboard from '@/components/Dashboard'
 import LandingPage from '@/components/LandingPage'
 import PaymentGate from '@/components/PaymentGate'
 
 function AppContent() {
   const { user, loading } = useAuth()
+  const router = useRouter()
   const [showLogin, setShowLogin] = useState(false)
   const [loginMode, setLoginMode] = useState<'signin' | 'signup'>('signup')
   const [selectedPlan, setSelectedPlan] = useState<string | undefined>(undefined)
+  const [mounted, setMounted] = useState(false)
   const { hasActiveSubscription, getCurrentPlan, isLoading: pricingLoading } = usePricingActions()
 
-  if (loading || pricingLoading) {
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted || loading || pricingLoading) {
     return (
       <Box style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-gray-0)' }}>
         <Center h="100vh">
@@ -70,13 +76,11 @@ function AppContent() {
     />
   }
 
-  return <Dashboard />
+  // User is fully authenticated and has subscription - redirect to dashboard
+  router.replace('/dashboard/overview')
+  return null
 }
 
 export default function Home() {
-  return (
-    <PricingProvider>
-      <AppContent />
-    </PricingProvider>
-  )
+  return <AppContent />
 }

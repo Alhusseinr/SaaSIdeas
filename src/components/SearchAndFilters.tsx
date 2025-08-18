@@ -95,21 +95,25 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
             onChange={(e) => updateFilter('searchQuery', e.target.value)}
             radius="md"
             size="md"
+            styles={{
+              input: { backgroundColor: '#2A2A2A', borderColor: '#404040', color: '#F5F5F5' }
+            }}
           />
           
           <Button
             onClick={() => setIsExpanded(!isExpanded)}
             variant={hasActiveFilters() ? "light" : "default"}
-            color={hasActiveFilters() ? "blue" : "gray"}
+            color={hasActiveFilters() ? "emerald" : "gray"}
             leftSection={<IconFilter size={18} />}
             rightSection={
               hasActiveFilters() && (
-                <Badge size="xs" color="blue" variant="filled" style={{ marginLeft: 4 }}>
+                <Badge size="xs" color="emerald" variant="filled" style={{ marginLeft: 4 }}>
                   !
                 </Badge>
               )
             }
             radius="md"
+            size="md"
           >
             Filters
           </Button>
@@ -118,13 +122,13 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
 
       {/* Advanced Filters */}
       <Collapse in={isExpanded}>
-        <Box m="xl" mt={0}>
-          <Card withBorder radius="md" p="xl" bg="gray.0">
+        <Box mt="md">
+          <Card withBorder radius="lg" p="xl" bg="#1A1A1A" style={{ borderColor: '#404040' }}>
             <Grid mb="md">
               {/* Score Range */}
               <Grid.Col span={{ base: 12, md: 6, lg: 3 }}>
                 <Stack gap="sm">
-                  <Text size="sm" fw={500}>
+                  <Text size="sm" fw={500} c="#F5F5F5">
                     Score Range: {filters.scoreRange[0]} - {filters.scoreRange[1]}
                   </Text>
                   <RangeSlider
@@ -132,7 +136,7 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
                     max={100}
                     value={filters.scoreRange}
                     onChange={(value) => updateFilter('scoreRange', value)}
-                    color="blue"
+                    color="emerald"
                     size="md"
                   />
                 </Stack>
@@ -141,7 +145,7 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
               {/* Build Time Range */}
               <Grid.Col span={{ base: 12, md: 6, lg: 3 }}>
                 <Stack gap="sm">
-                  <Text size="sm" fw={500}>
+                  <Text size="sm" fw={500} c="#F5F5F5">
                     Build Time: {filters.buildTimeRange[0]}w - {filters.buildTimeRange[1]}w
                   </Text>
                   <RangeSlider
@@ -149,7 +153,7 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
                     max={104}
                     value={filters.buildTimeRange}
                     onChange={(value) => updateFilter('buildTimeRange', value)}
-                    color="blue"
+                    color="emerald"
                     size="md"
                   />
                 </Stack>
@@ -175,6 +179,12 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
                     { value: 'security', label: 'Security' }
                   ]}
                   radius="md"
+                  styles={{
+                    label: { color: '#F5F5F5' },
+                    input: { backgroundColor: '#2A2A2A', borderColor: '#404040', color: '#F5F5F5' },
+                    dropdown: { backgroundColor: '#2A2A2A', borderColor: '#404040' },
+                    option: { color: '#F5F5F5' }
+                  }}
                 />
               </Grid.Col>
 
@@ -195,6 +205,12 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
                     { value: 'ai', label: 'AI Tool' }
                   ]}
                   radius="md"
+                  styles={{
+                    label: { color: '#F5F5F5' },
+                    input: { backgroundColor: '#2A2A2A', borderColor: '#404040', color: '#F5F5F5' },
+                    dropdown: { backgroundColor: '#2A2A2A', borderColor: '#404040' },
+                    option: { color: '#F5F5F5' }
+                  }}
                 />
               </Grid.Col>
             </Grid>
@@ -213,6 +229,12 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
                     { value: 'advanced', label: 'Advanced (8+ months)' }
                   ]}
                   radius="md"
+                  styles={{
+                    label: { color: '#F5F5F5' },
+                    input: { backgroundColor: '#2A2A2A', borderColor: '#404040', color: '#F5F5F5' },
+                    dropdown: { backgroundColor: '#2A2A2A', borderColor: '#404040' },
+                    option: { color: '#F5F5F5' }
+                  }}
                 />
               </Grid.Col>
 
@@ -231,6 +253,12 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
                     { value: 'name', label: 'Name (A-Z)' }
                   ]}
                   radius="md"
+                  styles={{
+                    label: { color: '#F5F5F5' },
+                    input: { backgroundColor: '#2A2A2A', borderColor: '#404040', color: '#F5F5F5' },
+                    dropdown: { backgroundColor: '#2A2A2A', borderColor: '#404040' },
+                    option: { color: '#F5F5F5' }
+                  }}
                 />
               </Grid.Col>
 
@@ -245,6 +273,12 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
                     { value: 'asc', label: 'Low to High' }
                   ]}
                   radius="md"
+                  styles={{
+                    label: { color: '#F5F5F5' },
+                    input: { backgroundColor: '#2A2A2A', borderColor: '#404040', color: '#F5F5F5' },
+                    dropdown: { backgroundColor: '#2A2A2A', borderColor: '#404040' },
+                    option: { color: '#F5F5F5' }
+                  }}
                 />
               </Grid.Col>
             </Grid>
@@ -262,7 +296,7 @@ export default function SearchAndFilters({ onSearchChange, onFiltersChange, tota
               </Button>
               
               {hasActiveFilters() && (
-                <Text size="sm" c="dimmed">
+                <Text size="sm" c="#CCCCCC">
                   {totalResults} of total opportunities match your filters
                 </Text>
               )}

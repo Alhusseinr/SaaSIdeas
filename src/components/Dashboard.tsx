@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Container,
   Title,
@@ -54,6 +55,8 @@ type TabType = 'overview' | 'validator' | 'ideas' | 'jobs' | 'functions' | 'subs
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [items, setItems] = useState<SaasIdeaItem[]>([])
   const [filteredItems, setFilteredItems] = useState<SaasIdeaItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,6 +74,14 @@ export default function Dashboard() {
     sortBy: 'score',
     sortOrder: 'desc'
   })
+
+  // Initialize tab from URL on mount
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab') as TabType
+    if (tabFromUrl && ['overview', 'validator', 'ideas', 'jobs', 'functions', 'subscription'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     fetchItems()
@@ -227,6 +238,14 @@ export default function Dashboard() {
     setFilteredItems(filtered)
   }
 
+  const handleTabChange = (newTab: TabType) => {
+    setActiveTab(newTab)
+    // Update URL with new tab
+    const newSearchParams = new URLSearchParams(searchParams.toString())
+    newSearchParams.set('tab', newTab)
+    router.push(`?${newSearchParams.toString()}`)
+  }
+
   const navigationItems = [
     { icon: IconDashboard, label: 'Strategic Overview', value: 'overview' },
     { icon: IconBrain, label: 'Opportunity Validator', value: 'validator' },
@@ -381,13 +400,13 @@ export default function Dashboard() {
               <Grid.Col span={{ base: 12 }}>
                 <ProblemOfTheDay onViewDetails={(idea) => {
                   setSelectedItem(idea);
-                  setActiveTab('ideas');
+                  handleTabChange('ideas');
                 }} />
               </Grid.Col>
               <Grid.Col span={{ base: 12 }}>
                 <TrendingProblems onViewDetails={(idea) => {
                   setSelectedItem(idea);
-                  setActiveTab('ideas');
+                  handleTabChange('ideas');
                 }} />
               </Grid.Col>
             </Grid>
@@ -516,7 +535,7 @@ export default function Dashboard() {
               }}
               justify="flex-start"
               leftSection={<item.icon size={18} />}
-              onClick={() => setActiveTab(item.value as TabType)}
+              onClick={() => handleTabChange(item.value as TabType)}
               fullWidth
             >
               {item.label}

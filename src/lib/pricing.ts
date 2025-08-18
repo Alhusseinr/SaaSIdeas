@@ -122,16 +122,52 @@ export class PricingService {
 
   // Check if user can validate an idea
   static async canUserValidateIdea(userId: string): Promise<boolean> {
-    const { data, error } = await supabase.rpc('can_user_validate_idea', {
-      user_uuid: userId
-    })
-
-    if (error) {
-      console.error('Error checking validation permissions:', error)
-      throw error
+    try {
+      // Use the reliable fallback logic as the primary method
+      // The database function has persistent RLS/permission issues
+      return await this.canUserValidateIdeaFallback(userId)
+    } catch (error) {
+      console.error('Error in canUserValidateIdea:', error)
+      return false
     }
+  }
 
-    return data || false
+  // Reliable validation check that bypasses problematic database function
+  static async canUserValidateIdeaFallback(userId: string): Promise<boolean> {
+    try {
+      console.log('🔍 Checking validation permissions for user:', userId)
+      
+      // Get current subscription
+      const subscription = await this.getCurrentSubscription(userId)
+      if (!subscription) {
+        console.log('❌ No active subscription found')
+        return false
+      }
+
+      console.log(`✅ Found subscription: ${subscription.plan_display_name}`)
+      console.log(`   Validations per month: ${subscription.validations_per_month}`)
+
+      // If unlimited validations, return true
+      if (subscription.validations_per_month === -1) {
+        console.log('✅ Unlimited validations - access granted')
+        return true
+      }
+
+      // Get current usage
+      const usage = await this.getCurrentMonthUsage(userId)
+      const validationUsage = usage.find(u => u.usage_type === 'idea_validation')?.total_usage || 0
+
+      console.log(`   Current usage: ${validationUsage}/${subscription.validations_per_month}`)
+
+      // Return true if under limit
+      const canValidate = validationUsage < subscription.validations_per_month
+      console.log(`   Can validate: ${canValidate}`)
+      
+      return canValidate
+    } catch (error) {
+      console.error('Error in validation check:', error)
+      return false
+    }
   }
 
   // Record usage for a user

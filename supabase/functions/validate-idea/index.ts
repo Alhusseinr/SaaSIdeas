@@ -170,7 +170,12 @@ Return STRICT JSON:
   "recommendations": ["Recommendation 1", "Recommendation 2"],
   "similar_complaints": 15,
   "keyword_matches": ["keyword1", "keyword2"]
-}`;
+}
+
+IMPORTANT: 
+- similar_complaints should be your estimate of truly relevant complaint posts (not the total provided)
+- Base this on the quality and relevance of matches, not just quantity
+- Consider semantic similarity, not just keyword matches`;
 
   const user = `IDEA TO VALIDATE:
 Name: ${idea.name}
@@ -309,7 +314,17 @@ Deno.serve(async (req) => {
       recommendations: Array.isArray(aiResult.recommendations) 
         ? aiResult.recommendations.map(String) 
         : [],
-      similar_complaints: Math.max(0, Math.round(Number(aiResult.similar_complaints) || complaintPosts.length)),
+      similar_complaints: (() => {
+        // If AI provided a valid number, use it
+        const aiCount = Number(aiResult.similar_complaints);
+        if (!isNaN(aiCount) && aiCount > 0) {
+          return Math.round(aiCount);
+        }
+        
+        // Otherwise, use keyword match count as a more realistic fallback
+        // This represents posts that actually relate to the idea
+        return Math.max(1, keywordMatches.count);
+      })(),
       keyword_matches: keywordMatches.matches
     };
 

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { ColorSchemeScript, MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { ModalsProvider } from '@mantine/modals';
+import Providers from '@/components/Providers';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import '@mantine/dates/styles.css';
@@ -29,15 +30,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-mantine-color-scheme="dark">
       <head>
-        <ColorSchemeScript defaultColorScheme="dark" />
       </head>
       <body className={inter.className} style={{ backgroundColor: '#0D0D0D' }}>
-        <MantineProvider theme={theme} defaultColorScheme="dark">
+        <MantineProvider theme={theme} defaultColorScheme="dark" forceColorScheme="dark">
           <ModalsProvider>
             <Notifications />
-            {children}
+            <Providers>
+              {children}
+            </Providers>
           </ModalsProvider>
         </MantineProvider>
       </body>

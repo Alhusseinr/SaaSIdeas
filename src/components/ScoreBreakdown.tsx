@@ -153,9 +153,9 @@ export default function ScoreBreakdown({ idea }: ScoreBreakdownProps) {
         <Stack gap="md" pt="md">
           {/* Score Components */}
           {scoreComponents.map((component, index) => (
-            <Card key={index} p="md" radius="md" withBorder style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
+            <Card key={index} p="md" radius="md" withBorder style={{ backgroundColor: '#2A2A2A', borderColor: '#404040' }}>
               <Group justify="space-between" mb="xs">
-                <Text fw={500} size="sm">{component.name}</Text>
+                <Text fw={500} size="sm" c="#F5F5F5">{component.name}</Text>
                 <Group gap="xs">
                   <Badge color={getScoreColor(component.score, component.maxScore)} variant="light">
                     {component.score}/{component.maxScore}
@@ -170,15 +170,19 @@ export default function ScoreBreakdown({ idea }: ScoreBreakdownProps) {
                 mb="xs"
               />
               
-              <Text size="xs" c="dimmed" mb="xs">{component.description}</Text>
+              <Text size="xs" c="#CCCCCC" mb="xs">{component.description}</Text>
               
               <Alert
                 variant="light"
                 color="blue"
                 icon={<IconInfoCircle size={14} />}
+                styles={{
+                  root: { backgroundColor: '#1A1A1A', borderColor: '#404040' },
+                  message: { color: '#E5E5E5' }
+                }}
               >
-                <Text size="xs">
-                  <Text span fw={500}>Calculation:</Text> {component.calculation}
+                <Text size="xs" c="#E5E5E5">
+                  <Text span fw={500} c="#F5F5F5">Calculation:</Text> {component.calculation}
                 </Text>
               </Alert>
             </Card>
@@ -188,18 +192,20 @@ export default function ScoreBreakdown({ idea }: ScoreBreakdownProps) {
           <Card
             p="md"
             radius="md"
+            withBorder
             style={{
-              background: 'linear-gradient(to right, var(--mantine-color-purple-0), var(--mantine-color-indigo-0))'
+              backgroundColor: '#006B3C',
+              borderColor: '#0F4C3A'
             }}
           >
             <Group justify="space-between" mb="xs">
-              <Text fw={500} c="purple">Total Validation Score</Text>
-              <Text size="lg" fw={700} c="purple">{actualScore}/100</Text>
+              <Text fw={500} c="#F5F5F5">Total Validation Score</Text>
+              <Text size="lg" fw={700} c="#F5F5F5">{actualScore}/100</Text>
             </Group>
             
             <Progress 
               value={actualScore} 
-              color="purple"
+              color="emerald"
               size="md"
               mb="sm"
             />
