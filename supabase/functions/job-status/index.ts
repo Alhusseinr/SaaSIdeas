@@ -78,6 +78,10 @@ interface IngestJob extends BaseJob {
       github: 'pending' | 'running' | 'completed' | 'failed';
       producthunt: 'pending' | 'running' | 'completed' | 'failed';
       stackoverflow: 'pending' | 'running' | 'completed' | 'failed';
+      youtube: 'pending' | 'running' | 'completed' | 'failed';
+      twitch: 'pending' | 'running' | 'completed' | 'failed';
+      podcast: 'pending' | 'running' | 'completed' | 'failed';
+      notion: 'pending' | 'running' | 'completed' | 'failed';
     };
   };
 }

@@ -22,7 +22,7 @@ const INTER_BATCH_DELAY = 3000; // Delays for stability
 const OPENAI_TIMEOUT_MS = 20000; // Longer timeout for summaries
 const MAX_RETRIES = 3;
 const SAFETY_BUFFER_MS = 3 * 60 * 1000; // 3 minutes safety buffer
-const MAX_POSTS_PER_RUN = 50; // Conservative limit for summary processing
+const MAX_POSTS_PER_RUN = 100; // Increased limit for summary processing
 
 // Enhanced reliability configuration
 const OPENAI_RATE_LIMIT_DELAY = 60000; // 1 minute delay for rate limit
@@ -462,18 +462,17 @@ async function summarizeWithReliability(post: any): Promise<string> {
   const cleanedText = cleanForSummary(`${post.title || ""}\n${post.body || ""}`);
   const systemPrompt = `You are an expert product researcher analyzing customer complaints.
 
-Your task: Create a detailed, actionable business summary of this complaint post.
+Your task: Create a concise, actionable business summary of this complaint post.
 
 Requirements:
-- 4-6 sentences that provide comprehensive analysis
-- Focus on the core problem/pain point and its implications
+- 4-6 sentences maximum
+- Focus on the core problem/pain point
 - Use business-friendly language
-- Highlight potential opportunity areas and business impact
-- Include context about user frustration level and urgency
+- Highlight potential opportunity areas
 - No metadata, disclaimers, or JSON formatting
 - Return ONLY the summary text
 
-Example format: "Users struggle with slow loading times on mobile apps, particularly during peak hours, creating frustration and potential churn opportunities. The issue appears most severe for users with older devices or slower internet connections. This performance problem is driving negative reviews and reducing user engagement metrics. The complaint suggests immediate optimization of mobile performance could significantly improve user retention and satisfaction."`;
+Example format: "Users struggle with slow loading times on mobile apps, particularly during peak hours, creating frustration and potential churn opportunities."`;
 
   const userPrompt = `Analyze this complaint post and provide a business summary:
 
@@ -496,7 +495,7 @@ URL: ${post.url || "N/A"}`;
         body: JSON.stringify({
           model: "gpt-4o-mini",
           temperature: 0.2,
-          max_tokens: 250,
+          max_tokens: 150,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
@@ -605,12 +604,19 @@ async function executeSummaryJob(jobId: string): Promise<void> {
     // Process posts that need summarization
     while (Date.now() - startTime < MAX_PROCESSING_TIME && totalProcessed < MAX_POSTS_PER_RUN) {
       // Fetch negative complaint posts without summaries
-      const { data: posts, error } = await supabase
+      let query = supabase
         .from("posts")
         .select("id, title, body, url, platform, sentiment, is_complaint, created_at")
         .eq("is_complaint", true)
         .lt("sentiment", job.parameters?.sentiment_threshold || -0.1)
-        .is("summary", null)
+        .is("summary", null);
+
+      // Add platform filter if specified
+      if (job.parameters?.platform && job.parameters.platform !== "all") {
+        query = query.eq("platform", job.parameters.platform);
+      }
+
+      const { data: posts, error } = await query
         .order("sentiment", { ascending: true })
         .order("created_at", { ascending: false })
         .limit(Math.min(BATCH_SIZE * 3, MAX_POSTS_PER_RUN - totalProcessed));
@@ -837,7 +843,8 @@ Deno.serve(async (req) => {
       batch_size: parseInt(url.searchParams.get("batch_size") || String(BATCH_SIZE)),
       concurrent_requests: parseInt(url.searchParams.get("concurrent_requests") || String(CONCURRENT_REQUESTS)),
       sentiment_threshold: parseFloat(url.searchParams.get("sentiment_threshold") || "-0.1"),
-      priority: url.searchParams.get("priority") || "recent_negative_first"
+      priority: url.searchParams.get("priority") || "recent_negative_first",
+      platform: url.searchParams.get("platform") || "all" // New platform filter
     };
 
     const job: SummaryJob = {

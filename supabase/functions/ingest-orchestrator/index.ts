@@ -23,7 +23,11 @@ const PLATFORMS = {
   hackernews: { enabled: true, endpoint: "/functions/v1/ingest-hackernews" },
   github: { enabled: true, endpoint: "/functions/v1/ingest-github" },
   producthunt: { enabled: true, endpoint: "/functions/v1/ingest-producthunt" },
-  stackoverflow: { enabled: true, endpoint: "/functions/v1/ingest-stackoverflow" }
+  stackoverflow: { enabled: true, endpoint: "/functions/v1/ingest-stackoverflow" },
+  youtube: { enabled: true, endpoint: "/functions/v1/ingest-youtube" },
+  twitch: { enabled: true, endpoint: "/functions/v1/ingest-twitch" },
+  podcast: { enabled: true, endpoint: "/functions/v1/ingest-podcast" },
+  notion: { enabled: true, endpoint: "/functions/v1/ingest-notion" }
 };
 
 interface PostData {
@@ -64,6 +68,10 @@ interface IngestJob {
       github: 'pending' | 'running' | 'completed' | 'failed';
       producthunt: 'pending' | 'running' | 'completed' | 'failed';
       stackoverflow: 'pending' | 'running' | 'completed' | 'failed';
+      youtube: 'pending' | 'running' | 'completed' | 'failed';
+      twitch: 'pending' | 'running' | 'completed' | 'failed';
+      podcast: 'pending' | 'running' | 'completed' | 'failed';
+      notion: 'pending' | 'running' | 'completed' | 'failed';
     };
   };
   result?: any;
@@ -276,7 +284,11 @@ async function executeOrchestrationJob(jobId: string, parameters: any): Promise<
           hackernews: 'pending',
           github: 'pending',
           producthunt: 'pending',
-          stackoverflow: 'pending'
+          stackoverflow: 'pending',
+          youtube: 'pending',
+          twitch: 'pending',
+          podcast: 'pending',
+          notion: 'pending'
         }
       }
     });
@@ -301,7 +313,11 @@ async function executeOrchestrationJob(jobId: string, parameters: any): Promise<
           hackernews: 'running',
           github: 'running',
           producthunt: 'running',
-          stackoverflow: 'running'
+          stackoverflow: 'running',
+          youtube: 'running',
+          twitch: 'running',
+          podcast: 'running',
+          notion: 'running'
         }
       }
     });
@@ -315,7 +331,11 @@ async function executeOrchestrationJob(jobId: string, parameters: any): Promise<
       hackernews: 'running' as const,
       github: 'running' as const,
       producthunt: 'running' as const,
-      stackoverflow: 'running' as const
+      stackoverflow: 'running' as const,
+      youtube: 'running' as const,
+      twitch: 'running' as const,
+      podcast: 'running' as const,
+      notion: 'running' as const
     };
 
     // Start all platform calls with individual completion tracking

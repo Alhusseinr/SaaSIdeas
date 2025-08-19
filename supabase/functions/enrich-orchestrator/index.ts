@@ -22,7 +22,7 @@ const INTER_BATCH_DELAY = 3000; // Longer delays for stability
 const OPENAI_TIMEOUT_MS = 15000; // Shorter timeout
 const MAX_RETRIES = 3; // Increased for better reliability
 const SAFETY_BUFFER_MS = 3 * 60 * 1000; // 3 minutes safety buffer
-const MAX_POSTS_PER_RUN = 100; // Hard limit on posts per function execution
+const MAX_POSTS_PER_RUN = 200; // Increased limit on posts per function execution
 
 // Embedding configuration
 const EMBEDDING_MODEL = "text-embedding-3-small";
@@ -1490,26 +1490,40 @@ async function executeEnrichmentJob(jobId: string, parameters: any): Promise<voi
           console.warn(`Missing embedding fetch failed: ${missingEmbeddingQuery.error.message}`);
           
           // Fallback: fetch posts without enriched_at or with null sentiment/embedding
-          const fallbackQuery = await supabase
+          let fallbackQuery = supabase
             .from("posts")
             .select("id, title, body, sentiment, keywords, enriched_at, created_at, embedding")
-            .or("enriched_at.is.null,sentiment.is.null,embedding.is.null")
+            .or("enriched_at.is.null,sentiment.is.null,embedding.is.null");
+
+          // Add platform filter if specified
+          if (parameters?.platform && parameters.platform !== "all") {
+            fallbackQuery = fallbackQuery.eq("platform", parameters.platform);
+          }
+
+          const fallbackQueryResult = await fallbackQuery
             .order("created_at", { ascending: false })
             .limit(fetchSize);
         
-          if (fallbackQuery.error) {
-            console.warn(`Fallback fetch also failed: ${fallbackQuery.error.message}`);
+          if (fallbackQueryResult.error) {
+            console.warn(`Fallback fetch also failed: ${fallbackQueryResult.error.message}`);
             
             // Try explicit incomplete posts query
-            const incompleteQuery = await supabase
+            let incompleteQuery = supabase
               .from("posts")
-            .select("id, title, body, sentiment, keywords, enriched_at, created_at, embedding")
-            .or("sentiment.is.null,keywords.is.null,embedding.is.null,enriched_at.is.null")
-            .order("created_at", { ascending: false })
-            .limit(fetchSize);
+              .select("id, title, body, sentiment, keywords, enriched_at, created_at, embedding")
+              .or("sentiment.is.null,keywords.is.null,embedding.is.null,enriched_at.is.null");
+
+            // Add platform filter if specified
+            if (parameters?.platform && parameters.platform !== "all") {
+              incompleteQuery = incompleteQuery.eq("platform", parameters.platform);
+            }
+
+            const incompleteQueryResult = await incompleteQuery
+              .order("created_at", { ascending: false })
+              .limit(fetchSize);
           
-          if (incompleteQuery.error) {
-            console.warn(`Incomplete posts query failed: ${incompleteQuery.error.message}`);
+          if (incompleteQueryResult.error) {
+            console.warn(`Incomplete posts query failed: ${incompleteQueryResult.error.message}`);
             
             // Last resort: fetch all posts and filter in code
             const allPostsQuery = await supabase
@@ -1522,11 +1536,11 @@ async function executeEnrichmentJob(jobId: string, parameters: any): Promise<voi
             error = allPostsQuery.error;
             console.log(`Using all posts fetch: ${posts.length} posts`);
           } else {
-            posts = incompleteQuery.data || [];
+            posts = incompleteQueryResult.data || [];
             console.log(`Using incomplete posts fetch: ${posts.length} posts`);
           }
           } else {
-            posts = fallbackQuery.data || [];
+            posts = fallbackQueryResult.data || [];
             console.log(`Using fallback fetch: ${posts.length} posts`);
           }
         } else {
@@ -1967,7 +1981,8 @@ Deno.serve(async (req) => {
     const jobParameters = {
       batch_size: parseInt(url.searchParams.get("batch_size") || String(BATCH_SIZE)),
       concurrent_requests: parseInt(url.searchParams.get("concurrent_requests") || String(CONCURRENT_REQUESTS)),
-      priority: url.searchParams.get("priority") || "recent_first"
+      priority: url.searchParams.get("priority") || "recent_first",
+      platform: url.searchParams.get("platform") || "all" // New platform filter
     };
 
     const job: EnrichJob = {
