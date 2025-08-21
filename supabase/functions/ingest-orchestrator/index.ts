@@ -16,18 +16,24 @@ const MAX_REQUESTS_PER_WINDOW = 5;
 // Simple in-memory rate limiting
 const rateLimitMap = new Map<string, { count: number, windowStart: number }>();
 
-// Platform configuration - using simplified platform functions (no imports, Edge Function compatible)
+// Platform configuration - using hybrid approach (Railway for heavy ingestion, Supabase for others)
+const RAILWAY_ENDPOINT = Deno.env.get("RAILWAY_REDDIT_ENDPOINT"); // Set this to your Railway URL
+
 const PLATFORMS = {
-  reddit: { enabled: true, endpoint: "/functions/v1/ingest-reddit" },
-  twitter: { enabled: true, endpoint: "/functions/v1/ingest-twitter" },
-  hackernews: { enabled: true, endpoint: "/functions/v1/ingest-hackernews" },
-  github: { enabled: true, endpoint: "/functions/v1/ingest-github" },
-  producthunt: { enabled: true, endpoint: "/functions/v1/ingest-producthunt" },
-  stackoverflow: { enabled: true, endpoint: "/functions/v1/ingest-stackoverflow" },
-  youtube: { enabled: true, endpoint: "/functions/v1/ingest-youtube" },
-  twitch: { enabled: true, endpoint: "/functions/v1/ingest-twitch" },
-  podcast: { enabled: true, endpoint: "/functions/v1/ingest-podcast" },
-  notion: { enabled: true, endpoint: "/functions/v1/ingest-notion" }
+  reddit: { 
+    enabled: true, 
+    endpoint: RAILWAY_ENDPOINT || "/functions/v1/ingest-reddit", // Use Railway if available, fallback to Supabase
+    isExternal: !!RAILWAY_ENDPOINT // Flag to handle external calls differently
+  },
+  twitter: { enabled: true, endpoint: "/functions/v1/ingest-twitter", isExternal: false },
+  hackernews: { enabled: true, endpoint: "/functions/v1/ingest-hackernews", isExternal: false },
+  github: { enabled: true, endpoint: "/functions/v1/ingest-github", isExternal: false },
+  producthunt: { enabled: true, endpoint: "/functions/v1/ingest-producthunt", isExternal: false },
+  stackoverflow: { enabled: true, endpoint: "/functions/v1/ingest-stackoverflow", isExternal: false },
+  youtube: { enabled: true, endpoint: "/functions/v1/ingest-youtube", isExternal: false },
+  twitch: { enabled: true, endpoint: "/functions/v1/ingest-twitch", isExternal: false },
+  podcast: { enabled: true, endpoint: "/functions/v1/ingest-podcast", isExternal: false },
+  notion: { enabled: true, endpoint: "/functions/v1/ingest-notion", isExternal: false }
 };
 
 interface PostData {
@@ -61,18 +67,7 @@ interface IngestJob {
     current_step: string;
     total_steps: number;
     completed_steps: number;
-    platforms_status: {
-      reddit: 'pending' | 'running' | 'completed' | 'failed';
-      twitter: 'pending' | 'running' | 'completed' | 'failed';
-      hackernews: 'pending' | 'running' | 'completed' | 'failed';
-      github: 'pending' | 'running' | 'completed' | 'failed';
-      producthunt: 'pending' | 'running' | 'completed' | 'failed';
-      stackoverflow: 'pending' | 'running' | 'completed' | 'failed';
-      youtube: 'pending' | 'running' | 'completed' | 'failed';
-      twitch: 'pending' | 'running' | 'completed' | 'failed';
-      podcast: 'pending' | 'running' | 'completed' | 'failed';
-      notion: 'pending' | 'running' | 'completed' | 'failed';
-    };
+    platforms_status: Record<string, 'pending' | 'running' | 'completed' | 'failed'>;
   };
   result?: any;
   error?: string;
@@ -211,10 +206,28 @@ async function callPlatformFunction(
   const startTime = Date.now();
   
   try {
-    const baseUrl = new URL(Deno.env.get("SUPABASE_URL") || "").origin;
-    const url = `${baseUrl}${endpoint}`;
+    // Check if this is an external endpoint (Railway) or internal (Supabase)
+    const platformConfig = PLATFORMS[platform as keyof typeof PLATFORMS];
+    const isExternal = platformConfig?.isExternal || false;
     
-    console.log(`Calling ${platform} platform function: ${url}`);
+    let url: string;
+    let requestBody: any;
+    
+    if (isExternal) {
+      // External Railway endpoint - use full URL and adapt parameters
+      url = endpoint;
+      requestBody = {
+        max_posts: parameters.max_posts || 1000, // Allow larger requests for Railway
+        use_all_reddit: parameters.use_all_reddit !== undefined ? parameters.use_all_reddit : true
+      };
+      console.log(`Calling ${platform} via Railway: ${url}`);
+    } else {
+      // Internal Supabase endpoint - use relative URL
+      const baseUrl = new URL(Deno.env.get("SUPABASE_URL") || "").origin;
+      url = `${baseUrl}${endpoint}`;
+      requestBody = parameters;
+      console.log(`Calling ${platform} via Supabase: ${url}`);
+    }
     
     const response = await fetch(url, {
       method: "POST",
@@ -222,7 +235,7 @@ async function callPlatformFunction(
         "Content-Type": "application/json",
         ...headers
       },
-      body: JSON.stringify(parameters)
+      body: JSON.stringify(requestBody)
     });
 
     const duration = Date.now() - startTime;
@@ -243,11 +256,18 @@ async function callPlatformFunction(
 
     const result = await response.json();
     
+    // Handle different response formats (Railway vs Supabase)
+    const posts = result.posts || [];
+    const filtered = result.filtered || 0;
+    const success = result.success !== false; // Default to true unless explicitly false
+    
+    console.log(`${platform} result: ${posts.length} posts, ${filtered} filtered, success: ${success}`);
+    
     return {
       platform,
-      success: true,
-      posts: result.posts || [],
-      filtered: result.filtered || 0,
+      success,
+      posts,
+      filtered,
       duration_ms: duration
     };
 
@@ -296,6 +316,37 @@ async function executeOrchestrationJob(jobId: string, parameters: any): Promise<
     const startTime = Date.now();
     console.log(`Job ${jobId}: Starting orchestrated multi-platform ingestion...`);
 
+    // Filter platforms based on parameters
+    let enabledPlatforms = Object.entries(PLATFORMS).filter(([_, config]) => config.enabled);
+    
+    // If specific platform is requested, filter to only that platform
+    if (parameters.platform) {
+      const requestedPlatform = parameters.platform.toLowerCase();
+      enabledPlatforms = enabledPlatforms.filter(([platform, _]) => platform.toLowerCase() === requestedPlatform);
+      
+      if (enabledPlatforms.length === 0) {
+        throw new Error(`Platform '${parameters.platform}' is not available or not enabled. Available platforms: ${Object.keys(PLATFORMS).join(', ')}`);
+      }
+      
+      console.log(`Job ${jobId}: Single platform mode - only ingesting from ${requestedPlatform}`);
+    }
+    
+    console.log(`Job ${jobId}: Processing ${enabledPlatforms.length} platform(s): ${enabledPlatforms.map(([p]) => p).join(', ')}`);
+    
+    // Initialize platform statuses based on enabled platforms
+    const currentPlatformStatuses: Record<string, 'pending' | 'running' | 'completed' | 'failed'> = {
+      reddit: enabledPlatforms.some(([p]) => p === 'reddit') ? 'running' : 'pending',
+      twitter: enabledPlatforms.some(([p]) => p === 'twitter') ? 'running' : 'pending',
+      hackernews: enabledPlatforms.some(([p]) => p === 'hackernews') ? 'running' : 'pending',
+      github: enabledPlatforms.some(([p]) => p === 'github') ? 'running' : 'pending',
+      producthunt: enabledPlatforms.some(([p]) => p === 'producthunt') ? 'running' : 'pending',
+      stackoverflow: enabledPlatforms.some(([p]) => p === 'stackoverflow') ? 'running' : 'pending',
+      youtube: enabledPlatforms.some(([p]) => p === 'youtube') ? 'running' : 'pending',
+      twitch: enabledPlatforms.some(([p]) => p === 'twitch') ? 'running' : 'pending',
+      podcast: enabledPlatforms.some(([p]) => p === 'podcast') ? 'running' : 'pending',
+      notion: enabledPlatforms.some(([p]) => p === 'notion') ? 'running' : 'pending'
+    };
+
     // Prepare headers for platform function calls
     const headers: Record<string, string> = {};
     if (INGEST_API_KEY) {
@@ -307,36 +358,11 @@ async function executeOrchestrationJob(jobId: string, parameters: any): Promise<
         current_step: 'Calling all platform functions in parallel',
         total_steps: 4,
         completed_steps: 1,
-        platforms_status: {
-          reddit: 'running',
-          twitter: 'running',
-          hackernews: 'running',
-          github: 'running',
-          producthunt: 'running',
-          stackoverflow: 'running',
-          youtube: 'running',
-          twitch: 'running',
-          podcast: 'running',
-          notion: 'running'
-        }
+        platforms_status: currentPlatformStatuses
       }
     });
 
-    // Call all enabled platform functions in parallel with individual status updates
-    const enabledPlatforms = Object.entries(PLATFORMS).filter(([_, config]) => config.enabled);
     const platformResults: PlatformResult[] = [];
-    const currentPlatformStatuses = {
-      reddit: 'running' as const,
-      twitter: 'running' as const,
-      hackernews: 'running' as const,
-      github: 'running' as const,
-      producthunt: 'running' as const,
-      stackoverflow: 'running' as const,
-      youtube: 'running' as const,
-      twitch: 'running' as const,
-      podcast: 'running' as const,
-      notion: 'running' as const
-    };
 
     // Start all platform calls with individual completion tracking
     const platformPromises = enabledPlatforms.map(async ([platform, config]) => {
@@ -561,11 +587,24 @@ Deno.serve(async (req) => {
     const jobId = generateJobId();
     const nowISO = new Date().toISOString();
     
+    // Parse request body for parameters
+    let requestParams: any = {};
+    if (req.headers.get("content-type")?.includes("application/json")) {
+      try {
+        requestParams = await req.json();
+      } catch (error) {
+        console.log("No JSON body provided, using URL parameters only");
+      }
+    }
+
     // Parse parameters (pass through to platform functions)
     const jobParameters = {
       max_subreddits: parseInt(url.searchParams.get("max_subreddits") || "35"),
       max_phrases: parseInt(url.searchParams.get("max_phrases") || "12"),
-      extended: url.searchParams.get("extended") === "true"
+      extended: url.searchParams.get("extended") === "true",
+      max_posts: requestParams.max_posts || 1000,
+      use_all_reddit: requestParams.use_all_reddit !== undefined ? requestParams.use_all_reddit : true,
+      platform: requestParams.platform || url.searchParams.get("platform") // Support both JSON body and URL param
     };
 
     const job: IngestJob = {

@@ -40,13 +40,7 @@ function normalizeName(name: string): string {
     .trim();
 }
 
-function extractSummaryText(summary: any): string {
-  if (!summary) return "";
-  if (typeof summary === "object") {
-    return String(summary.text || summary.summary || "");
-  }
-  return String(summary);
-}
+// Removed extractSummaryText - no longer needed since we're using full post content
 
 function buildEnhancedPrompt(items: string[], existingIdeas: string[]): { system: string, user: string } {
   const system = `You are an innovative SaaS strategist and product visionary.
@@ -109,7 +103,7 @@ Return STRICT JSON:
   ]
 }`;
 
-  const user = `Analyze these complaint summaries and identify COMMON PATTERNS that could be solved by scalable SaaS solutions:
+  const user = `Analyze these full complaint posts and identify COMMON PATTERNS that could be solved by scalable SaaS solutions:
 
 ${items}
 
@@ -264,15 +258,16 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     
-    // Fetch summarized complaint posts
+    // Fetch enriched complaint posts (skip summarization requirement)
     const sinceISO = new Date(Date.now() - days * 86400000).toISOString();
     const { data: posts, error: postsError } = await supabase
       .from("posts")
-      .select("id, summary, sentiment, url, created_at, platform")
+      .select("id, title, body, sentiment, url, created_at, platform")
       .eq("platform", platform)
       .eq("is_complaint", true)
       .lt("sentiment", -0.1)
-      .not("summary", "is", null)
+      .not("title", "is", null)
+      .not("body", "is", null)
       .gte("created_at", sinceISO)
       .order("sentiment", { ascending: true })
       .order("created_at", { ascending: false })
@@ -336,16 +331,16 @@ Deno.serve(async (req) => {
     
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       const chunk = chunks[chunkIndex];
-      const summaryLines = chunk.map(post => {
-        const summary = extractSummaryText(post.summary).replace(/\s+/g, " ").trim();
-        const truncated = summary.slice(0, SUMMARY_TRUNC);
-        return `(${post.id}) ${truncated}${summary.length > SUMMARY_TRUNC ? "…" : ""} [${post.url || 'N/A'}]`;
+      const complaintLines = chunk.map(post => {
+        const fullContent = `${post.title || ""}\n\n${post.body || ""}`.replace(/\s+/g, " ").trim();
+        const truncated = fullContent.slice(0, SUMMARY_TRUNC * 2); // Use more content since we're not using summaries
+        return `(${post.id}) ${truncated}${fullContent.length > SUMMARY_TRUNC * 2 ? "…" : ""} [${post.url || 'N/A'}]`;
       });
 
       console.log(`Processing chunk ${chunkIndex + 1}/${chunks.length} with ${chunk.length} posts...`);
 
       try {
-        const { system, user } = buildEnhancedPrompt(summaryLines, existingIdeaNames);
+        const { system, user } = buildEnhancedPrompt(complaintLines, existingIdeaNames);
         const result = await callOpenAIWithRetry(system, user);
         
         const ideas = Array.isArray(result?.ideas) ? result.ideas : [];

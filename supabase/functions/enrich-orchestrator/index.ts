@@ -25,7 +25,7 @@ const SAFETY_BUFFER_MS = 3 * 60 * 1000; // 3 minutes safety buffer
 const MAX_POSTS_PER_RUN = 200; // Increased limit on posts per function execution
 
 // Embedding configuration
-const EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_MODEL = "text-embedding-3-large";
 const EMBED_CHAR_LIMIT = 7000; // Conservative limit for embedding API
 
 // Enhanced reliability configuration

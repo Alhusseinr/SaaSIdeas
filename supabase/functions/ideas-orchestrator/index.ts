@@ -51,9 +51,23 @@ const MAX_COST_PER_JOB = 5.0; // Maximum $5 per job
 // Idea generation configuration
 const DEFAULT_DAYS = 14;
 const DEFAULT_LIMIT = 300;
-const SUMMARY_TRUNC = 200;
+const CONTENT_TRUNC = 2000; // Full post content limit (increased for richer context)
 const DEDUPE_LOOKBACK_DAYS = 60;
 const MIN_SCORE_THRESHOLD = 30;
+const MIN_SUPPORTING_POSTS = 5; // Require 5+ posts for high-confidence ideas
+const HIGH_CONFIDENCE_THRESHOLD = 7; // 7+ posts = high confidence
+
+// Pre-clustering configuration
+const SIMILARITY_THRESHOLD = 0.60; // Cosine similarity threshold for grouping posts (lowered based on actual similarity data)
+const MIN_CLUSTER_SIZE = 3; // Minimum posts required in a cluster to generate ideas (lowered for more clusters)
+const MAX_CLUSTERS_TO_PROCESS = 10; // Limit number of clusters to process
+const CLUSTER_REPRESENTATION_LIMIT = 15; // Max posts to use per cluster for idea generation
+
+// Workflow automation focus (scoring boost, not filtering)
+const AUTOMATION_SCORE_BOOST = 15; // Bonus points for automation-focused ideas
+const INTEGRATION_SCORE_BOOST = 12; // Bonus points for integration solutions
+const REPORTING_SCORE_BOOST = 10; // Bonus points for reporting/dashboard ideas
+const COMPLIANCE_SCORE_BOOST = 8; // Bonus points for compliance solutions
 
 // Simple in-memory rate limiting
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
@@ -225,6 +239,15 @@ function resetCostTracker(): void {
   costTracker.tokenCounts = {};
 }
 
+interface PostCluster {
+  id: string;
+  posts: any[];
+  centroid: number[]; // Average embedding vector
+  size: number;
+  representative_posts: any[]; // Top posts representing this cluster
+  theme_summary: string; // AI-generated theme description
+}
+
 interface IdeasJob {
   id: string;
   status: "pending" | "running" | "completed" | "failed";
@@ -241,6 +264,8 @@ interface IdeasJob {
     total_chunks: number;
     ideas_generated: number;
     ideas_inserted: number;
+    clusters_found: number;
+    clusters_processed: number;
   };
   result?: any;
   error?: string;
@@ -400,12 +425,488 @@ function normalizeName(name: string): string {
     .trim();
 }
 
-function extractSummaryText(summary: any): string {
-  if (!summary) return "";
-  if (typeof summary === "object") {
-    return String(summary.text || summary.summary || "");
+// Removed extractSummaryText - no longer needed since we're using full post content
+
+// Utility functions for clustering
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  if (vecA.length !== vecB.length) return 0;
+  
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
   }
-  return String(summary);
+  
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function calculateCentroid(embeddings: number[][]): number[] {
+  if (embeddings.length === 0) return [];
+  
+  const dimensions = embeddings[0].length;
+  const centroid = new Array(dimensions).fill(0);
+  
+  for (const embedding of embeddings) {
+    for (let i = 0; i < dimensions; i++) {
+      centroid[i] += embedding[i];
+    }
+  }
+  
+  for (let i = 0; i < dimensions; i++) {
+    centroid[i] /= embeddings.length;
+  }
+  
+  return centroid;
+}
+
+// Semantic clustering using post embeddings
+function clusterPostsBySimilarity(posts: any[]): PostCluster[] {
+  // Filter posts that have embeddings (support both array and pgvector formats)
+  const postsWithEmbeddings = posts.filter(post => {
+    if (!post.embedding) return false;
+    
+    // Handle pgvector format (might be a string or object)
+    if (typeof post.embedding === 'string') {
+      try {
+        post.embedding = JSON.parse(post.embedding);
+      } catch (e) {
+        console.warn(`Failed to parse embedding for post ${post.id}:`, e);
+        return false;
+      }
+    }
+    
+    // Now check if it's a valid array
+    return Array.isArray(post.embedding) && post.embedding.length > 0;
+  });
+  
+  console.log(`DEBUG: Total posts: ${posts.length}`);
+  console.log(`DEBUG: Posts with embeddings: ${postsWithEmbeddings.length}`);
+  console.log(`DEBUG: Posts without embeddings: ${posts.length - postsWithEmbeddings.length}`);
+  
+  if (postsWithEmbeddings.length < 2) {
+    console.log(`DEBUG: Not enough posts with embeddings for clustering (need at least 2, have ${postsWithEmbeddings.length})`);
+    return [];
+  }
+  
+  // Debug: Check embedding dimensions and format
+  if (postsWithEmbeddings.length > 0) {
+    const samplePost = postsWithEmbeddings[0];
+    const sampleEmbedding = samplePost.embedding;
+    console.log(`DEBUG: Sample post ${samplePost.id} embedding type: ${typeof sampleEmbedding}`);
+    console.log(`DEBUG: Is array: ${Array.isArray(sampleEmbedding)}`);
+    if (Array.isArray(sampleEmbedding)) {
+      console.log(`DEBUG: Embedding dimensions: ${sampleEmbedding.length}`);
+      console.log(`DEBUG: Sample embedding first 5 values: [${sampleEmbedding.slice(0, 5).map((v: number) => v.toFixed(4)).join(', ')}]`);
+    } else {
+      console.log(`DEBUG: Raw embedding value: ${JSON.stringify(sampleEmbedding).slice(0, 100)}...`);
+    }
+  } else {
+    console.log(`DEBUG: No posts with valid embeddings found after filtering`);
+  }
+  
+  console.log(`Clustering ${postsWithEmbeddings.length} posts with embeddings`);
+  
+  const clusters: PostCluster[] = [];
+  const processed = new Set<number>();
+  
+  let totalSimilarityChecks = 0;
+  const allSimilarities: number[] = [];
+  
+  for (let i = 0; i < postsWithEmbeddings.length; i++) {
+    if (processed.has(i)) continue;
+    
+    const seedPost = postsWithEmbeddings[i];
+    const clusterPosts = [seedPost];
+    const clusterPostIndices = [i];
+    processed.add(i);
+    
+    console.log(`DEBUG: Starting cluster with seed post ${seedPost.id}`);
+    
+    // Find similar posts for this cluster
+    for (let j = i + 1; j < postsWithEmbeddings.length; j++) {
+      if (processed.has(j)) continue;
+      
+      const candidatePost = postsWithEmbeddings[j];
+      const similarity = cosineSimilarity(seedPost.embedding, candidatePost.embedding);
+      totalSimilarityChecks++;
+      allSimilarities.push(similarity);
+      
+      if (similarity >= SIMILARITY_THRESHOLD) {
+        console.log(`DEBUG: Found similar post ${candidatePost.id} with similarity ${similarity.toFixed(4)}`);
+        clusterPosts.push(candidatePost);
+        clusterPostIndices.push(j);
+        processed.add(j);
+      }
+    }
+    
+    console.log(`DEBUG: Potential cluster has ${clusterPosts.length} posts`);
+    
+    // Only create cluster if it meets minimum size requirement
+    if (clusterPosts.length >= MIN_CLUSTER_SIZE) {
+      console.log(`DEBUG: Creating cluster with ${clusterPosts.length} posts (meets min size ${MIN_CLUSTER_SIZE})`);
+      const embeddings = clusterPosts.map(post => post.embedding);
+      const centroid = calculateCentroid(embeddings);
+      
+      // Sort posts by sentiment (most negative first) and take top representatives
+      const sortedPosts = clusterPosts.sort((a, b) => a.sentiment - b.sentiment);
+      const representativePosts = sortedPosts.slice(0, CLUSTER_REPRESENTATION_LIMIT);
+      
+      clusters.push({
+        id: `cluster_${clusters.length + 1}`,
+        posts: clusterPosts,
+        centroid,
+        size: clusterPosts.length,
+        representative_posts: representativePosts,
+        theme_summary: "" // Will be filled by AI later
+      });
+    } else {
+      console.log(`DEBUG: Cluster too small (${clusterPosts.length} < ${MIN_CLUSTER_SIZE}), skipping`);
+    }
+  }
+  
+  // Debug similarity statistics
+  if (allSimilarities.length > 0) {
+    allSimilarities.sort((a, b) => b - a); // Sort descending
+    const maxSim = allSimilarities[0];
+    const avgSim = allSimilarities.reduce((sum, sim) => sum + sim, 0) / allSimilarities.length;
+    const medianSim = allSimilarities[Math.floor(allSimilarities.length / 2)];
+    const aboveThreshold = allSimilarities.filter(sim => sim >= SIMILARITY_THRESHOLD).length;
+    
+    console.log(`DEBUG: Similarity statistics:`);
+    console.log(`  - Total similarity checks: ${totalSimilarityChecks}`);
+    console.log(`  - Max similarity: ${maxSim.toFixed(4)}`);
+    console.log(`  - Average similarity: ${avgSim.toFixed(4)}`);
+    console.log(`  - Median similarity: ${medianSim.toFixed(4)}`);
+    console.log(`  - Above threshold (${SIMILARITY_THRESHOLD}): ${aboveThreshold} / ${allSimilarities.length} (${(aboveThreshold/allSimilarities.length*100).toFixed(1)}%)`);
+    console.log(`  - Top 10 similarities: [${allSimilarities.slice(0, 10).map(s => s.toFixed(4)).join(', ')}]`);
+  }
+  
+  // Sort clusters by size (largest first)
+  clusters.sort((a, b) => b.size - a.size);
+  
+  console.log(`Created ${clusters.length} clusters with sizes: ${clusters.map(c => c.size).join(', ')}`);
+  
+  return clusters.slice(0, MAX_CLUSTERS_TO_PROCESS);
+}
+
+// Fallback clustering when semantic clustering fails
+function createFallbackClusters(posts: any[], minSize: number): PostCluster[] {
+  console.log(`Creating fallback clusters from ${posts.length} posts with min size ${minSize}`);
+  
+  const fallbackClusters: PostCluster[] = [];
+  
+  // Strategy 1: Group by platform and sentiment ranges
+  const platformGroups: { [key: string]: any[] } = {};
+  
+  for (const post of posts) {
+    const platform = post.platform || 'unknown';
+    const sentimentRange = post.sentiment < -0.5 ? 'very_negative' : 
+                          post.sentiment < -0.1 ? 'negative' : 
+                          post.sentiment < 0.1 ? 'neutral' : 'positive';
+    const key = `${platform}_${sentimentRange}`;
+    
+    if (!platformGroups[key]) {
+      platformGroups[key] = [];
+    }
+    platformGroups[key].push(post);
+  }
+  
+  // Create clusters from groups that meet minimum size
+  for (const [key, groupPosts] of Object.entries(platformGroups)) {
+    if (groupPosts.length >= minSize) {
+      console.log(`Creating fallback cluster '${key}' with ${groupPosts.length} posts`);
+      
+      // Sort by sentiment (most negative first) and take representatives
+      const sortedPosts = groupPosts.sort((a, b) => a.sentiment - b.sentiment);
+      const representativePosts = sortedPosts.slice(0, CLUSTER_REPRESENTATION_LIMIT);
+      
+      fallbackClusters.push({
+        id: `fallback_${key}`,
+        posts: groupPosts,
+        centroid: [], // Empty for fallback clusters
+        size: groupPosts.length,
+        representative_posts: representativePosts,
+        theme_summary: `${key.replace('_', ' ')} posts` // Will be improved by AI later
+      });
+    }
+  }
+  
+  // Strategy 2: If still no clusters, create one big cluster from all posts
+  if (fallbackClusters.length === 0 && posts.length >= minSize) {
+    console.log(`Creating single fallback cluster from all ${posts.length} posts`);
+    
+    const sortedPosts = posts.sort((a, b) => a.sentiment - b.sentiment);
+    const representativePosts = sortedPosts.slice(0, CLUSTER_REPRESENTATION_LIMIT);
+    
+    fallbackClusters.push({
+      id: 'fallback_all_posts',
+      posts: posts,
+      centroid: [],
+      size: posts.length,
+      representative_posts: representativePosts,
+      theme_summary: 'Mixed SaaS opportunity posts'
+    });
+  }
+  
+  return fallbackClusters.slice(0, MAX_CLUSTERS_TO_PROCESS);
+}
+
+// Generate theme summary for a cluster using AI
+async function generateClusterTheme(cluster: PostCluster): Promise<string> {
+  if (!OPENAI_API_KEY) {
+    return `Cluster of ${cluster.size} similar complaints`;
+  }
+
+  const samplePosts = cluster.representative_posts.slice(0, 5);
+  const postTexts = samplePosts.map(post => {
+    const content = `${post.title || ""}\n${post.body || ""}`.slice(0, 300);
+    return content.replace(/\s+/g, ' ').trim();
+  }).join('\n\n');
+
+  const prompt = `Analyze these similar complaint posts and create a 1-sentence theme description:
+
+${postTexts}
+
+Return ONLY a concise theme description (10-15 words) that captures the common complaint pattern.`;
+
+  try {
+    const response = await fetchWithTimeout(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          temperature: 0.3,
+          max_tokens: 50,
+          messages: [
+            { role: "user", content: prompt }
+          ]
+        })
+      },
+      15000
+    );
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const theme = data?.choices?.[0]?.message?.content?.trim();
+    
+    if (theme) {
+      // Track cost
+      const inputTokens = estimateTokens(prompt);
+      const outputTokens = estimateTokens(theme);
+      trackCost("gpt-4o-mini", inputTokens, outputTokens, "ideation");
+      
+      return theme;
+    }
+  } catch (error) {
+    console.warn(`Failed to generate theme for cluster ${cluster.id}:`, error);
+  }
+
+  return `Cluster of ${cluster.size} similar complaints about workflow/productivity issues`;
+}
+
+// Analyze and boost scores for workflow automation opportunities
+function analyzeWorkflowOpportunity(idea: any): { 
+  score_boost: number; 
+  automation_category: string | null;
+  automation_signals: string[];
+} {
+  const ideaText = `${idea.name || ""} ${idea.one_liner || ""} ${idea.rationale || ""} ${JSON.stringify(idea.core_features || [])}`.toLowerCase();
+  const clusterTheme = (idea.cluster_theme || "").toLowerCase();
+  
+  let scoreBoost = 0;
+  let automationCategory = null;
+  const automationSignals = [];
+
+  // 1. Workflow Automation Detection
+  const workflowKeywords = [
+    'automat', 'workflow', 'manual', 'repetitive', 'recurring', 'scheduled',
+    'trigger', 'batch process', 'bulk', 'routine', 'streamline', 'eliminate manual'
+  ];
+  const workflowMatches = workflowKeywords.filter(keyword => 
+    ideaText.includes(keyword) || clusterTheme.includes(keyword)
+  );
+  
+  if (workflowMatches.length > 0) {
+    scoreBoost += AUTOMATION_SCORE_BOOST;
+    automationCategory = 'workflow_automation';
+    automationSignals.push(`Workflow automation: ${workflowMatches.join(', ')}`);
+  }
+
+  // 2. Integration Gaps Detection  
+  const integrationKeywords = [
+    'integrat', 'connect', 'sync', 'api', 'webhook', 'bridge', 'link',
+    'unify', 'consolidate', 'centralize', 'single source', 'data flow'
+  ];
+  const systemKeywords = [
+    'crm', 'erp', 'hrms', 'salesforce', 'slack', 'teams', 'jira', 'asana',
+    'hubspot', 'mailchimp', 'stripe', 'quickbooks', 'excel', 'spreadsheet'
+  ];
+  
+  const integrationMatches = integrationKeywords.filter(keyword => 
+    ideaText.includes(keyword) || clusterTheme.includes(keyword)
+  );
+  const systemMatches = systemKeywords.filter(keyword => 
+    ideaText.includes(keyword) || clusterTheme.includes(keyword)
+  );
+  
+  if (integrationMatches.length > 0 && systemMatches.length >= 2) {
+    scoreBoost += INTEGRATION_SCORE_BOOST;
+    if (!automationCategory) automationCategory = 'integration_platform';
+    automationSignals.push(`Integration opportunity: ${integrationMatches.join(', ')} between ${systemMatches.join(', ')}`);
+  }
+
+  // 3. Reporting/Dashboard Detection
+  const reportingKeywords = [
+    'report', 'dashboard', 'analytic', 'metric', 'kpi', 'visibility', 'insight',
+    'track', 'monitor', 'measure', 'visualiz', 'chart', 'graph'
+  ];
+  const reportingMatches = reportingKeywords.filter(keyword => 
+    ideaText.includes(keyword) || clusterTheme.includes(keyword)
+  );
+  
+  if (reportingMatches.length > 0) {
+    scoreBoost += REPORTING_SCORE_BOOST;
+    if (!automationCategory) automationCategory = 'reporting_dashboard';
+    automationSignals.push(`Reporting/visibility: ${reportingMatches.join(', ')}`);
+  }
+
+  // 4. Compliance/Audit Trail Detection
+  const complianceKeywords = [
+    'compliance', 'audit', 'regulatory', 'govern', 'policy', 'rule',
+    'approval', 'permission', 'access control', 'security', 'gdpr', 'hipaa'
+  ];
+  const complianceMatches = complianceKeywords.filter(keyword => 
+    ideaText.includes(keyword) || clusterTheme.includes(keyword)
+  );
+  
+  if (complianceMatches.length > 0) {
+    scoreBoost += COMPLIANCE_SCORE_BOOST;
+    if (!automationCategory) automationCategory = 'compliance_automation';
+    automationSignals.push(`Compliance/audit: ${complianceMatches.join(', ')}`);
+  }
+
+  // 5. Additional Business Process Signals
+  const processKeywords = [
+    'process', 'procedure', 'checklist', 'template', 'standardiz', 'optimize'
+  ];
+  const processMatches = processKeywords.filter(keyword => 
+    ideaText.includes(keyword) || clusterTheme.includes(keyword)
+  );
+  
+  if (processMatches.length > 0 && scoreBoost === 0) {
+    scoreBoost += 5; // Small boost for general process improvement
+    automationCategory = 'process_optimization';
+    automationSignals.push(`Process improvement: ${processMatches.join(', ')}`);
+  }
+
+  return { score_boost: scoreBoost, automation_category: automationCategory, automation_signals: automationSignals };
+}
+
+// Smart filtering for SaaS opportunity posts (beyond just complaints)
+function isSaaSOpportunityPost(post: any): { 
+  isOpportunity: boolean; 
+  opportunityType: string;
+  signals: string[];
+} {
+  const title = (post.title || "").toLowerCase();
+  const body = (post.body || "").toLowerCase();
+  const content = `${title} ${body}`;
+  
+  const signals = [];
+  let opportunityType = "unknown";
+  let isOpportunity = false;
+
+  // 1. Complaint Posts (original logic)
+  if (post.is_complaint && post.sentiment < -0.1) {
+    isOpportunity = true;
+    opportunityType = "complaint";
+    signals.push("Negative sentiment complaint");
+  }
+
+  // 2. Feature Request / Wishlist Posts
+  const wishlistKeywords = [
+    'wish there was', 'looking for', 'need a tool', 'wish someone built',
+    'does anyone know', 'is there a', 'any recommendations for',
+    'what tool do you use', 'how do you handle', 'best way to',
+    'feature request', 'would love to see', 'missing feature'
+  ];
+  
+  const wishlistMatches = wishlistKeywords.filter(keyword => content.includes(keyword));
+  if (wishlistMatches.length > 0) {
+    isOpportunity = true;
+    opportunityType = "feature_request";
+    signals.push(`Feature request: ${wishlistMatches.join(', ')}`);
+  }
+
+  // 3. DIY Solution Sharing (could be productized)
+  const diyKeywords = [
+    'i built', 'i created', 'my script', 'my solution', 'i made',
+    'wrote a', 'custom tool', 'automation i', 'workflow i',
+    'here is how i', 'i solve this by', 'my approach'
+  ];
+  
+  const diyMatches = diyKeywords.filter(keyword => content.includes(keyword));
+  if (diyMatches.length > 0) {
+    isOpportunity = true;
+    opportunityType = "diy_solution";
+    signals.push(`DIY solution: ${diyMatches.join(', ')}`);
+  }
+
+  // 4. Tool Gap Mentions (positive about tool but mentions limitations)
+  const gapKeywords = [
+    'missing', 'lacks', 'doesnt have', 'wish it had', 'except for',
+    'but it doesnt', 'only issue', 'if only it', 'would be perfect if',
+    'needs better', 'could improve'
+  ];
+  
+  const gapMatches = gapKeywords.filter(keyword => content.includes(keyword));
+  if (gapMatches.length > 0 && post.sentiment > -0.5) { // Not deeply negative
+    isOpportunity = true;
+    opportunityType = "tool_gap";
+    signals.push(`Tool gap: ${gapMatches.join(', ')}`);
+  }
+
+  // 5. Market Research / Process Questions
+  const researchKeywords = [
+    'what tools', 'how do you', 'best practices', 'recommendations',
+    'what software', 'how does your team', 'workflow for',
+    'process for', 'tools for', 'software for'
+  ];
+  
+  const researchMatches = researchKeywords.filter(keyword => content.includes(keyword));
+  if (researchMatches.length > 0 && content.length > 100) { // Substantial posts only
+    isOpportunity = true;
+    opportunityType = "market_research";
+    signals.push(`Market research: ${researchMatches.join(', ')}`);
+  }
+
+  // 6. Business Process Mentions (any sentiment, if related to business workflows)
+  const businessKeywords = [
+    'workflow', 'process', 'automation', 'integration', 'crm', 'erp',
+    'project management', 'team collaboration', 'reporting', 'dashboard'
+  ];
+  
+  const businessMatches = businessKeywords.filter(keyword => content.includes(keyword));
+  if (businessMatches.length >= 2 && !isOpportunity) { // Multiple business terms
+    isOpportunity = true;
+    opportunityType = "business_process";
+    signals.push(`Business process: ${businessMatches.join(', ')}`);
+  }
+
+  return { isOpportunity, opportunityType, signals };
 }
 
 // Enhanced prompt for idea generation (optimized for gpt-4o-mini)
@@ -415,17 +916,25 @@ function buildEnhancedPrompt(
 ): { system: string; user: string } {
   const system = `You are a fast pattern-recognition SaaS strategist focused on identifying scalable opportunities.
 
-⚡ SPEED-OPTIMIZED ANALYSIS:
-1. RAPID PATTERN SCAN: Identify 3-5 recurring themes across multiple posts (not individual solutions)
-2. QUICK DIVERSITY CHECK: Generate 3-7 ideas spanning different industries, user types, or workflow stages
-3. FAST FEASIBILITY: Focus on proven SaaS patterns (dashboards, automation, integrations, notifications)
-4. LIGHTWEIGHT DIFFERENTIATION: Simple competitive positioning, don't over-research existence
+⚡ RECURRING PATTERN ANALYSIS:
+1. IDENTIFY IDENTICAL PROBLEMS: Look for the EXACT SAME complaint mentioned by multiple users
+2. COUNT FREQUENCY: Only generate ideas for problems mentioned 5+ times in the input
+3. FOCUS ON B2B PAIN: Prioritize workflow, productivity, and business process complaints
+4. MARKET VALIDATION: Consider willingness to pay - do users mention costs, time wasted, or business impact?
 
-🎯 PATTERN IDENTIFICATION FOCUS:
-- Same workflow bottlenecks mentioned 3+ times
-- Repeated integration/automation gaps
-- Common reporting/visibility issues
-- Shared compliance/process pain points
+🎯 HIGH-FREQUENCY PATTERN FOCUS (Required for idea generation):
+- SAME workflow bottleneck mentioned 5+ times by different users
+- IDENTICAL integration/automation gap across multiple posts  
+- RECURRING reporting/visibility problems with business impact
+- SHARED compliance/process pain points affecting productivity
+
+🚀 PRIORITIZE WORKFLOW AUTOMATION OPPORTUNITIES:
+- **Workflow Automation**: Manual, repetitive tasks that can be automated
+- **Integration Platforms**: Connecting disconnected business tools (CRM+Email, etc.)
+- **Reporting/Dashboards**: Visibility into business metrics and KPIs
+- **Compliance/Audit**: Regulatory requirements and approval workflows
+
+⚖️ BALANCED APPROACH: While prioritizing automation, also consider other valuable B2B solutions like communication tools, customer management, or specialized industry software.
 
 📊 SCORING (Focus on clear signals):
 - Pattern Frequency (0-30): How many posts mention this?
@@ -474,11 +983,17 @@ Return STRICT JSON exactly in this shape:
   ]
 }`;
 
-  const user = `Analyze these complaint summaries and identify COMMON PATTERNS that could be solved by scalable SaaS solutions:
+  const user = `Analyze these full complaint posts and identify HIGH-FREQUENCY PATTERNS (5+ mentions) that could be solved by scalable B2B SaaS solutions:
 
 ${items}
 
-Look for the SAME underlying problems mentioned across MULTIPLE different posts. Generate ideas that solve these recurring patterns, not individual one-off complaints.`;
+CRITICAL REQUIREMENTS:
+1. Only generate ideas for problems mentioned by 5+ different users/posts
+2. Provide specific post IDs that support each pattern in "representative_post_ids"
+3. Focus on B2B problems with clear business impact (time waste, productivity loss, manual work)
+4. Ignore one-off complaints or problems mentioned by fewer than 5 users
+
+Generate 1-3 high-confidence ideas based on the strongest recurring patterns you identify.`;
 
   return { system, user };
 }
@@ -758,7 +1273,7 @@ async function validateAndRefineIdeas(
         // Extract the first (and should be only) analysis result
         const analysis = validationResult.ideas_analysis[0];
 
-        // Update idea with validation results
+        // Update idea with validation results including market validation
         const enhancedIdea = {
           ...idea,
           score: analysis.revised_score || idea.score,
@@ -772,6 +1287,15 @@ async function validateAndRefineIdeas(
           risks: analysis.risks || [],
           go_to_market_hint: analysis.go_to_market_hint || null,
           sanity_check: analysis.sanity_check || "uncertain",
+          // Enhanced market validation fields
+          financial_impact: analysis.market_validation?.financial_impact || null,
+          time_waste_quantified: analysis.market_validation?.time_waste_quantified || null,
+          business_systems_mentioned: analysis.market_validation?.business_systems_mentioned || [],
+          willingness_to_pay: analysis.market_validation?.willingness_to_pay || null,
+          pain_frequency: analysis.market_validation?.pain_frequency || null,
+          target_persona_validated: analysis.market_validation?.target_persona_validated || null,
+          market_maturity: analysis.market_validation?.market_maturity || null,
+          adoption_barriers: analysis.market_validation?.adoption_barriers || [],
           validated_at: new Date().toISOString(),
           validated_by_model: VALIDATION_MODEL,
         };
@@ -801,7 +1325,7 @@ function buildValidationPrompt(idea: any): { system: string; user: string } {
 Your role is to evaluate SaaS product concepts with a critical, data-driven lens.
 
 CRITICAL REQUIREMENTS:
-1. Validate feasibility: Is the idea realistically buildable with today’s tech stack (APIs, integrations, LLMs, SaaS infra)?
+1. Validate feasibility: Is the idea realistically buildable with today's tech stack (APIs, integrations, LLMs, SaaS infra)?
 2. Assess competition: Identify existing products/services and whether they already solve this problem.
 3. Check product existence: If a similar product exists, analyze reviews/feedback (especially negative reviews).
 4. Improvement potential: Suggest how a new SaaS version could outperform existing ones (UX, integrations, pricing, performance, etc.).
@@ -809,6 +1333,14 @@ CRITICAL REQUIREMENTS:
 6. Test scalability: Does the idea serve a broad market segment or is it niche?
 7. Identify risks & blind spots: Potential adoption blockers, regulatory hurdles, switching costs, or entrenched incumbents.
 8. Prioritize opportunities: Re-score each idea (0–100) based on feasibility, competition, TAM/SAM, differentiation, and timing.
+
+🚨 MARKET VALIDATION ANALYSIS (CRITICAL):
+9. Extract financial impact signals: Look for mentions of dollar amounts lost, revenue impact, cost savings potential
+10. Quantify time waste: Identify "hours per week/month" wasted on manual processes or inefficiencies  
+11. Identify business systems: Look for mentions of CRM, ERP, HRMS, project management tools, accounting software
+12. Calculate market indicators: Estimate potential willingness to pay based on current costs of the problem
+13. Assess pain frequency: How often does this problem occur? (daily/weekly/monthly)
+14. Validate target persona: Are these enterprise users, SMB owners, or specific job functions?
 
 OUTPUT RULES:
 - Return STRICT JSON only. No explanations, markdown, or prose outside the JSON.
@@ -834,12 +1366,22 @@ Return STRICT JSON in this shape:
       "feasibility": "High | Medium | Low with reasoning",
       "risks": ["Risk 1", "Risk 2", "Risk 3+"],
       "go_to_market_hint": "Possible entry strategy or wedge",
-      "sanity_check": "Overall verdict: viable | crowded | weak"
+      "sanity_check": "Overall verdict: viable | crowded | weak",
+      "market_validation": {
+        "financial_impact": "Dollar amounts mentioned or estimated (e.g., '$50K lost annually')",
+        "time_waste_quantified": "Hours wasted per period (e.g., '10 hours/week per person')",
+        "business_systems_mentioned": ["CRM", "ERP", "project management", "etc"],
+        "willingness_to_pay": "Estimated based on current problem costs (e.g., '$200-500/month')",
+        "pain_frequency": "daily | weekly | monthly | quarterly",
+        "target_persona_validated": "Enterprise IT manager | SMB owner | Sales director | etc",
+        "market_maturity": "emerging | growing | mature | declining",
+        "adoption_barriers": ["Technical complexity", "Change management", "Cost", "etc"]
+      }
     }
   ]
 }`;
 
-  const user = `Validate this SaaS idea:
+  const user = `Validate this SaaS idea with deep market analysis:
 
 NAME: ${idea.name}
 TARGET USER: ${idea.target_user}
@@ -851,8 +1393,20 @@ CORE FEATURES: ${
   }
 CURRENT SCORE: ${idea.score}
 CURRENT RATIONALE: ${idea.rationale}
+CLUSTER THEME: ${idea.cluster_theme || "N/A"}
+CLUSTER SIZE: ${idea.cluster_size || 0} supporting complaints
 
-Perform market validation and existence check. Provide refined score and analysis.`;
+ORIGINAL COMPLAINTS FOR MARKET VALIDATION:
+${idea.representative_post_ids ? `Based on ${idea.representative_post_ids.length} complaint posts` : "No specific posts referenced"}
+
+🔍 PERFORM DEEP MARKET VALIDATION:
+- Extract any dollar amounts, costs, or financial impact mentioned
+- Look for time quantification (hours, days wasted)  
+- Identify business tools/systems mentioned (CRM, ERP, etc.)
+- Estimate market size and willingness to pay
+- Validate if this is a real, quantifiable business problem
+
+Provide comprehensive market validation analysis with refined scoring.`;
 
   return { system, user };
 }
@@ -1038,39 +1592,127 @@ async function executeIdeasJob(jobId: string): Promise<void> {
 
     const supabase = await dbPool.getConnection();
 
-    // Fetch summarized complaint posts
+    // Fetch enriched posts with embeddings (include both complaints and opportunity posts)
     const sinceISO = new Date(Date.now() - days * 86400000).toISOString();
+    
+    // Multi-modal approach: complaints + feature requests + solution sharing
     let query = supabase
       .from("posts")
-      .select("id, summary, sentiment, url, created_at, platform")
-      .eq("is_complaint", true)
-      .lt("sentiment", -0.1)
-      .not("summary", "is", null)
+      .select("id, title, body, sentiment, url, created_at, platform, embedding")
+      .not("title", "is", null)
+      .not("body", "is", null)
+      .not("embedding", "is", null)
       .gte("created_at", sinceISO);
+    
+    // Apply content-based filtering instead of just sentiment
+    // This will be filtered programmatically after fetch
 
     // Add platform filter if not "all"
     if (platform && platform !== "all") {
       query = query.eq("platform", platform);
     }
 
-    const { data: posts, error: postsError } = await query
-      .order("sentiment", { ascending: true })
+    const { data: rawPosts, error: postsError } = await query
       .order("created_at", { ascending: false })
-      .limit(Math.min(limit, MAX_SUMMARIES_PER_RUN));
+      .limit(Math.min(limit * 2, MAX_SUMMARIES_PER_RUN * 2)); // Fetch more to allow for filtering
 
     if (postsError) {
       throw new Error(`Failed to fetch posts: ${postsError.message}`);
     }
 
-    if (!posts || posts.length === 0) {
+    if (!rawPosts || rawPosts.length === 0) {
       await updateJobStatus(jobId, {
         status: "completed",
         completed_at: new Date().toISOString(),
         result: {
-          message: "No summarized complaints found",
+          message: "No posts found (title + body + embedding required)",
           ideas_generated: 0,
           ideas_inserted: 0,
           posts_processed: 0,
+          clusters_found: 0,
+        },
+      });
+      return;
+    }
+
+    // Debug: Check raw posts data quality
+    console.log(`DEBUG: Raw posts analysis:`);
+    const postsWithEmbeddings = rawPosts.filter((post: any) => {
+      if (!post.embedding) return false;
+      // Handle both array and string/object formats
+      if (typeof post.embedding === 'string') {
+        try {
+          post.embedding = JSON.parse(post.embedding);
+        } catch (e) {
+          return false;
+        }
+      }
+      return Array.isArray(post.embedding) && post.embedding.length > 0;
+    });
+    const postsWithComplaintFlag = rawPosts.filter((post: any) => post.is_complaint);
+    const negativesentimentPosts = rawPosts.filter((post: any) => post.sentiment < -0.1);
+    
+    console.log(`  - Total posts: ${rawPosts.length}`);
+    console.log(`  - Posts with embeddings: ${postsWithEmbeddings.length}`);
+    console.log(`  - Posts with is_complaint=true: ${postsWithComplaintFlag.length}`);
+    console.log(`  - Posts with sentiment < -0.1: ${negativesentimentPosts.length}`);
+    
+    if (rawPosts.length > 0) {
+      const samplePost = rawPosts[0];
+      console.log(`  - Sample post structure:`, {
+        id: samplePost.id,
+        has_title: !!samplePost.title,
+        has_body: !!samplePost.body,
+        has_embedding: !!samplePost.embedding,
+        embedding_length: samplePost.embedding ? samplePost.embedding.length : 0,
+        sentiment: samplePost.sentiment,
+        is_complaint: samplePost.is_complaint,
+        platform: samplePost.platform
+      });
+    }
+
+    // Apply smart filtering to identify SaaS opportunity posts
+    console.log(`Filtering ${rawPosts.length} posts for SaaS opportunities...`);
+    const opportunityPosts = [];
+    const opportunityStats = {
+      complaint: 0,
+      feature_request: 0,
+      diy_solution: 0,
+      tool_gap: 0,
+      market_research: 0,
+      business_process: 0
+    };
+
+    for (const post of rawPosts) {
+      const analysis = isSaaSOpportunityPost(post);
+      if (analysis.isOpportunity) {
+        opportunityPosts.push({
+          ...post,
+          opportunity_type: analysis.opportunityType,
+          opportunity_signals: analysis.signals
+        });
+        if (analysis.opportunityType in opportunityStats) {
+          (opportunityStats as any)[analysis.opportunityType]++;
+        }
+        
+        if (opportunityPosts.length >= limit) break; // Stop when we have enough
+      }
+    }
+
+    console.log(`Found ${opportunityPosts.length} opportunity posts:`, opportunityStats);
+
+    const posts = opportunityPosts;
+    if (posts.length === 0) {
+      await updateJobStatus(jobId, {
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        result: {
+          message: `No SaaS opportunity posts found in ${rawPosts.length} posts analyzed`,
+          ideas_generated: 0,
+          ideas_inserted: 0,
+          posts_processed: 0,
+          clusters_found: 0,
+          opportunity_stats: opportunityStats,
         },
       });
       return;
@@ -1086,8 +1728,42 @@ async function executeIdeasJob(jobId: string): Promise<void> {
       .gte("created_at", dedupeSinceISO);
 
     const existingIdeaNames = (existingIdeas || []).map(
-      (idea) => `${idea.name} (Target: ${idea.target_user || "N/A"})`
+      (idea: any) => `${idea.name} (Target: ${idea.target_user || "N/A"})`
     );
+
+    // Step 1: Cluster posts by semantic similarity
+    console.log(`Clustering ${posts.length} posts by semantic similarity...`);
+    console.log(`Using similarity threshold: ${job.parameters.similarity_threshold || SIMILARITY_THRESHOLD}`);
+    console.log(`Using min cluster size: ${job.parameters.min_cluster_size || MIN_CLUSTER_SIZE}`);
+    const clusters = clusterPostsBySimilarity(posts);
+    console.log(`Found ${clusters.length} clusters meeting minimum size requirement`);
+    
+    if (clusters.length === 0) {
+      console.log(`DEBUG: No clusters found. Consider lowering similarity_threshold (current: ${job.parameters.similarity_threshold || SIMILARITY_THRESHOLD}) or min_cluster_size (current: ${job.parameters.min_cluster_size || MIN_CLUSTER_SIZE})`);
+      
+      // Fallback: Create pseudo-clusters by grouping posts by platform or random grouping
+      console.log(`DEBUG: Trying fallback clustering approach...`);
+      const fallbackClusters = createFallbackClusters(posts, job.parameters.min_cluster_size || MIN_CLUSTER_SIZE);
+      if (fallbackClusters.length > 0) {
+        console.log(`DEBUG: Created ${fallbackClusters.length} fallback clusters`);
+        clusters.push(...fallbackClusters);
+      }
+    }
+
+    if (clusters.length === 0) {
+      await updateJobStatus(jobId, {
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        result: {
+          message: `No clusters with ${MIN_CLUSTER_SIZE}+ posts found. Try lowering similarity threshold.`,
+          ideas_generated: 0,
+          ideas_inserted: 0,
+          posts_processed: posts.length,
+          clusters_found: 0,
+        },
+      });
+      return;
+    }
 
     // Create run header
     const { data: runData, error: runError } = await supabase
@@ -1096,7 +1772,7 @@ async function executeIdeasJob(jobId: string): Promise<void> {
         platform: `${platform}_patterns`,
         period_days: days,
         source_limit: limit,
-        notes: `Enhanced orchestrated generation from ${posts.length} posts`,
+        notes: `Cluster-based analysis from ${posts.length} posts in ${clusters.length} semantic clusters`,
       })
       .select("id, created_at")
       .single();
@@ -1108,85 +1784,123 @@ async function executeIdeasJob(jobId: string): Promise<void> {
     const runId = runData.id;
     console.log(`Created run ${runId}`);
 
-    // Process posts in chunks
-    const chunks = [];
-    for (let i = 0; i < posts.length; i += CHUNK_SIZE) {
-      chunks.push(posts.slice(i, i + CHUNK_SIZE));
+    // Step 2: Generate AI themes for clusters
+    console.log("Generating themes for clusters...");
+    for (let i = 0; i < clusters.length; i++) {
+      const cluster = clusters[i];
+      cluster.theme_summary = await generateClusterTheme(cluster);
+      console.log(`Cluster ${i + 1}: "${cluster.theme_summary}" (${cluster.size} posts)`);
     }
 
     const allIdeas: any[] = [];
-    let processedSummaries = 0;
+    let processedClusters = 0;
 
-    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+    // Step 3: Process each cluster to generate ideas
+    for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex++) {
       if (Date.now() - startTime >= MAX_PROCESSING_TIME) {
         console.log("Processing time limit reached, stopping");
         break;
       }
 
-      const chunk = chunks[chunkIndex];
-      const summaryLines = chunk.map((post) => {
-        const summary = extractSummaryText(post.summary)
+      const cluster = clusters[clusterIndex];
+      const clusterPosts = cluster.representative_posts;
+      
+      const complaintLines = clusterPosts.map((post) => {
+        // Use full post content instead of summary
+        const fullContent = `${post.title || ""}\n\n${post.body || ""}`
           .replace(/\s+/g, " ")
           .trim();
-        const truncated = summary.slice(0, SUMMARY_TRUNC);
+        const truncated = fullContent.slice(0, CONTENT_TRUNC);
         return `(${post.id}) ${truncated}${
-          summary.length > SUMMARY_TRUNC ? "…" : ""
+          fullContent.length > CONTENT_TRUNC ? "…" : ""
         } [${post.url || "N/A"}]`;
       });
 
       console.log(
-        `Processing chunk ${chunkIndex + 1}/${chunks.length} with ${
-          chunk.length
-        } posts...`
+        `Processing cluster ${clusterIndex + 1}/${clusters.length}: "${cluster.theme_summary}" with ${clusterPosts.length} representative posts...`
       );
 
       // Update progress
       await updateJobStatus(jobId, {
         progress: {
-          current_step: `Processing chunk ${chunkIndex + 1}`,
-          total_steps: chunks.length,
-          completed_steps: chunkIndex,
-          summaries_processed: processedSummaries,
+          current_step: `Processing cluster ${clusterIndex + 1}: ${cluster.theme_summary}`,
+          total_steps: clusters.length,
+          completed_steps: clusterIndex,
+          summaries_processed: processedClusters * CLUSTER_REPRESENTATION_LIMIT,
           summaries_total: posts.length,
-          current_chunk: chunkIndex + 1,
-          total_chunks: chunks.length,
+          current_chunk: clusterIndex + 1,
+          total_chunks: clusters.length,
           ideas_generated: allIdeas.length,
           ideas_inserted: 0,
+          clusters_found: clusters.length,
+          clusters_processed: processedClusters,
         },
       });
 
       try {
+        // Enhanced prompt with cluster context
+        const clusterContextPrompt = `Focus on this specific complaint pattern: "${cluster.theme_summary}"
+        
+        This cluster contains ${cluster.size} similar complaints. Generate 1-2 highly focused SaaS ideas that specifically solve this recurring pattern.`;
+        
         const result = await generateIdeasWithReliability(
-          summaryLines,
+          [clusterContextPrompt, ...complaintLines],
           existingIdeaNames,
           job.parameters.ideation_model || IDEATION_MODEL
         );
         const ideas = Array.isArray(result?.ideas) ? result.ideas : [];
         console.log(
-          `Chunk ${chunkIndex + 1}: received ${ideas.length} raw ideas`
+          `Cluster ${clusterIndex + 1}: received ${ideas.length} raw ideas`
         );
 
+        // Enhance ideas with cluster information and workflow automation analysis
+        const enhancedIdeas = ideas.map((idea: any) => {
+          const baseIdea = {
+            ...idea,
+            cluster_id: cluster.id,
+            cluster_theme: cluster.theme_summary,
+            cluster_size: cluster.size,
+            representative_post_ids: idea.representative_post_ids || 
+              cluster.representative_posts.map(p => p.id)
+          };
+
+          // Analyze workflow automation opportunity and boost score
+          const automationAnalysis = analyzeWorkflowOpportunity(baseIdea);
+          const enableBoost = job.parameters.enable_automation_boost !== false;
+          const finalScoreBoost = enableBoost ? automationAnalysis.score_boost : 0;
+          
+          return {
+            ...baseIdea,
+            score: (baseIdea.score || 0) + finalScoreBoost,
+            automation_category: automationAnalysis.automation_category,
+            automation_signals: automationAnalysis.automation_signals,
+            original_score: baseIdea.score, // Keep track of original score
+            automation_boost: finalScoreBoost,
+            automation_boost_enabled: enableBoost
+          };
+        });
+
         const deduplicatedIdeas = deduplicateIdeas(
-          ideas,
+          enhancedIdeas,
           allIdeas.concat(existingIdeas || [])
         );
         console.log(
-          `Chunk ${chunkIndex + 1}: ${
+          `Cluster ${clusterIndex + 1}: ${
             deduplicatedIdeas.length
           } unique ideas after deduplication`
         );
 
         allIdeas.push(...deduplicatedIdeas);
-        processedSummaries += chunk.length;
+        processedClusters++;
 
-        // Inter-chunk delay
-        if (chunkIndex < chunks.length - 1) {
+        // Inter-cluster delay
+        if (clusterIndex < clusters.length - 1) {
           await new Promise((resolve) =>
             setTimeout(resolve, INTER_CHUNK_DELAY)
           );
         }
       } catch (error) {
-        console.error(`Chunk ${chunkIndex + 1} failed:`, error);
+        console.error(`Cluster ${clusterIndex + 1} processing failed:`, error);
       }
     }
 
@@ -1209,15 +1923,16 @@ async function executeIdeasJob(jobId: string): Promise<void> {
     await updateJobStatus(jobId, {
       progress: {
         current_step: "Validation completed",
-        total_steps: chunks.length + 1,
-        completed_steps: chunks.length + 1,
-        summaries_processed: processedSummaries,
+        total_steps: clusters.length + 1,
+        completed_steps: clusters.length + 1,
+        summaries_processed: processedClusters * CLUSTER_REPRESENTATION_LIMIT,
         summaries_total: posts.length,
-        current_chunk: chunks.length,
-        total_chunks: chunks.length,
+        current_chunk: clusters.length,
+        total_chunks: clusters.length,
         ideas_generated: allIdeas.length,
-        ideas_validated: validatedCount,
         ideas_inserted: 0,
+        clusters_found: clusters.length,
+        clusters_processed: processedClusters,
       },
     });
 
@@ -1225,15 +1940,27 @@ async function executeIdeasJob(jobId: string): Promise<void> {
     const preparedIdeas = validatedIdeas.map((idea) => {
       const postIds = Array.isArray(idea.representative_post_ids)
         ? idea.representative_post_ids
-            .filter((id) => Number.isInteger(Number(id)))
+            .filter((id: any) => Number.isInteger(Number(id)))
             .map(Number)
         : [];
+
+      // Calculate confidence level based on supporting posts
+      const supportingPostCount = postIds.length;
+      const confidenceLevel = supportingPostCount >= HIGH_CONFIDENCE_THRESHOLD 
+        ? 'high' 
+        : supportingPostCount >= MIN_SUPPORTING_POSTS 
+          ? 'medium' 
+          : 'low';
+      
+      // Boost score for ideas with strong post support
+      const supportBonus = Math.min(20, supportingPostCount * 2);
+      const adjustedScore = Math.min(100, (idea.score || 0) + supportBonus);
 
       return {
         run_id: runId,
         name: String(idea.name || "Untitled Idea"),
         name_norm: normalizeName(idea.name || ""),
-        score: Math.min(100, Math.max(0, Math.round(Number(idea.score) || 0))),
+        score: Math.min(100, Math.max(0, Math.round(Number(adjustedScore) || 0))),
         one_liner: idea.one_liner ? String(idea.one_liner) : null,
         target_user: idea.target_user ? String(idea.target_user) : null,
         core_features: Array.isArray(idea.core_features)
@@ -1244,6 +1971,7 @@ async function executeIdeasJob(jobId: string): Promise<void> {
         rationale: idea.rationale ? String(idea.rationale) : null,
         representative_post_ids: postIds,
         posts_in_common: postIds.length, // Number of posts that support this idea
+        confidence_level: confidenceLevel, // High/Medium/Low based on post support
         pattern_evidence: idea.pattern_evidence
           ? String(idea.pattern_evidence)
           : null,
@@ -1256,7 +1984,7 @@ async function executeIdeasJob(jobId: string): Promise<void> {
         validated_by_model: idea.validated_by_model || null,
         payload: {
           ...idea,
-          // Store validation fields in payload until schema is updated
+          // Store all validation fields in payload until schema is updated
           validation_metadata: idea.validated_at
             ? {
                 market_size: idea.market_size,
@@ -1271,8 +1999,27 @@ async function executeIdeasJob(jobId: string): Promise<void> {
                 sanity_check: idea.sanity_check,
                 validated_at: idea.validated_at,
                 validated_by_model: idea.validated_by_model,
+                // Market validation data
+                market_validation: {
+                  financial_impact: idea.financial_impact,
+                  time_waste_quantified: idea.time_waste_quantified,
+                  business_systems_mentioned: idea.business_systems_mentioned,
+                  willingness_to_pay: idea.willingness_to_pay,
+                  pain_frequency: idea.pain_frequency,
+                  target_persona_validated: idea.target_persona_validated,
+                  market_maturity: idea.market_maturity,
+                  adoption_barriers: idea.adoption_barriers,
+                }
               }
             : undefined,
+          // Workflow automation analysis
+          automation_analysis: {
+            category: idea.automation_category,
+            signals: idea.automation_signals,
+            original_score: idea.original_score,
+            automation_boost: idea.automation_boost,
+            final_score: idea.score
+          }
         },
       };
     });
@@ -1302,8 +2049,9 @@ async function executeIdeasJob(jobId: string): Promise<void> {
       platform,
       period_days: days,
       source_limit: limit,
-      posts_processed: processedSummaries,
-      chunks_processed: chunks.length,
+      posts_processed: processedClusters * CLUSTER_REPRESENTATION_LIMIT,
+      clusters_found: clusters.length,
+      clusters_processed: processedClusters,
       raw_ideas_generated: allIdeas.length,
       ideas_validated: validatedCount,
       ideas_inserted: insertedCount,
@@ -1361,7 +2109,7 @@ async function executeIdeasJob(jobId: string): Promise<void> {
   }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -1451,6 +2199,18 @@ Deno.serve(async (req) => {
           String(MAX_IDEAS_TO_VALIDATE)
       ),
       enable_validation: url.searchParams.get("enable_validation") !== "false", // Default true
+      // Clustering parameters
+      similarity_threshold: parseFloat(
+        url.searchParams.get("similarity_threshold") || String(SIMILARITY_THRESHOLD)
+      ),
+      min_cluster_size: parseInt(
+        url.searchParams.get("min_cluster_size") || String(MIN_CLUSTER_SIZE)
+      ),
+      max_clusters_to_process: parseInt(
+        url.searchParams.get("max_clusters_to_process") || String(MAX_CLUSTERS_TO_PROCESS)
+      ),
+      // Workflow automation focus parameters
+      enable_automation_boost: url.searchParams.get("enable_automation_boost") !== "false" // Default true
     };
 
     const job: IdeasJob = {

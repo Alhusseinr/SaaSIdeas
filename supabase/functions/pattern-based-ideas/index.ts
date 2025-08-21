@@ -191,13 +191,10 @@ Return STRICT JSON:
 }`;
 
   const postsText = posts.map(post => {
-    const summary = typeof post.summary === 'object' ? 
-      (post.summary?.text || post.summary?.summary || '') : 
-      (post.summary || '');
     const title = post.title || '';
-    const body = (post.body || '').slice(0, 200);
+    const body = (post.body || '').slice(0, 800); // Use more content since no summary
     
-    return `ID: ${post.id} | Title: ${title} | Summary: ${summary} | Content: ${body}...`;
+    return `ID: ${post.id} | Title: ${title} | Content: ${body}...`;
   }).join('\n');
 
   const user = `Analyze these ${posts.length} complaint posts and identify common patterns that could be solved by SaaS solutions:
@@ -326,14 +323,15 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Fetch recent complaint posts with summaries
+    // Fetch recent complaint posts (skip summarization requirement)
     const sinceISO = new Date(Date.now() - days * 86400000).toISOString();
     const { data: posts, error: postsError } = await supabase
       .from("posts")
-      .select("id, title, body, summary, sentiment, url, created_at, platform")
+      .select("id, title, body, sentiment, url, created_at, platform")
       .eq("is_complaint", true)
       .lt("sentiment", -0.1)
-      .not("summary", "is", null)
+      .not("title", "is", null)
+      .not("body", "is", null)
       .gte("created_at", sinceISO)
       .order("sentiment", { ascending: true })
       .order("created_at", { ascending: false })

@@ -106,18 +106,24 @@ async function getRedditToken(): Promise<string> {
 }
 
 async function fetchRedditPosts(
-  maxPosts: number = 30
-): Promise<{ posts: PostData[]; filtered: number }> {
+  maxPosts: number = 30,
+  useAllReddit: boolean = false
+): Promise<{ posts: PostData[]; filtered: number; timeoutReached: boolean }> {
   const posts: PostData[] = [];
   const nowISO = new Date().toISOString();
   let filteredCount = 0;
+  
+  // Timeout protection - Supabase Edge Functions have ~10 minute limit
+  const startTime = Date.now();
+  const MAX_PROCESSING_TIME = 8 * 60 * 1000; // 8 minutes to be safe
+  let timeoutReached = false;
 
   if (!REDDIT_CLIENT_ID || !REDDIT_CLIENT_SECRET) {
     throw new Error("Reddit credentials not configured");
   }
 
   // Complete subreddit list from original (priority subreddits)
-  const subreddits = [
+  const subreddits = useAllReddit ? ["all"] : [
     // Core Business & SaaS Communities (highest priority)
     "smallbusiness",
     "Entrepreneur",
@@ -198,6 +204,11 @@ async function fetchRedditPosts(
     "EntrepreneurRideAlong",
     "ProductManagement",
     "growthhacking",
+    
+    // Additional high-traffic subreddits (if not using USE_ALL_REDDIT)
+    "AskReddit", "LifeProTips", "unpopularopinion", "YouShouldKnow", 
+    "explainlikeimfive", "todayilearned", "personalfinance", "relationship_advice",
+    "legaladvice", "careerguidance", "findareddit", "tipofmytongue"
   ];
 
   // Complete phrase list from original
@@ -283,17 +294,31 @@ async function fetchRedditPosts(
     const accessToken = await getRedditToken();
     console.log("Reddit token obtained successfully");
 
-    // Use more subreddits and phrases to match original behavior
-    const selectedSubreddits = subreddits.slice(
-      0,
-      Math.min(15, subreddits.length)
-    );
-    const selectedPhrases = phrases.slice(0, Math.min(8, phrases.length));
+    // Use all subreddits and phrases for maximum coverage
+    const selectedSubreddits = useAllReddit ? ["all"] : subreddits; // Use all subreddits or just "all"
+    const selectedPhrases = phrases; // Use all phrases for maximum coverage
 
     for (const subreddit of selectedSubreddits) {
+      // Check timeout before each subreddit
+      if (Date.now() - startTime > MAX_PROCESSING_TIME) {
+        console.log(`Timeout reached at subreddit ${subreddit}, collected ${posts.length} posts`);
+        timeoutReached = true;
+        break;
+      }
+      
       for (const phrase of selectedPhrases) {
+        // Check timeout before each phrase
+        if (Date.now() - startTime > MAX_PROCESSING_TIME) {
+          console.log(`Timeout reached at phrase "${phrase}", collected ${posts.length} posts`);
+          timeoutReached = true;
+          break;
+        }
+        
         try {
-          const url = `https://oauth.reddit.com/r/${subreddit}/search?limit=10&sort=new&restrict_sr=1&t=week&q=${encodeURIComponent(
+          // Calculate dynamic limit based on total posts requested
+          const postsPerSearch = Math.min(25, Math.ceil(maxPosts / (selectedSubreddits.length * selectedPhrases.length)));
+          
+          const url = `https://oauth.reddit.com/r/${subreddit}/search?limit=${postsPerSearch}&sort=new&restrict_sr=1&t=week&q=${encodeURIComponent(
             `"${phrase}"`
           )}`;
 
@@ -357,14 +382,17 @@ async function fetchRedditPosts(
           console.error(`Error fetching ${subreddit}/"${phrase}":`, error);
         }
       }
+      
+      if (timeoutReached) break;
       if (posts.length >= maxPosts) break;
       await sleep(500); // Pause between subreddits
     }
 
+    const elapsed = Date.now() - startTime;
     console.log(
-      `Reddit ingestion complete: ${posts.length} posts fetched, ${filteredCount} filtered`
+      `Reddit ingestion ${timeoutReached ? 'stopped early due to timeout' : 'complete'}: ${posts.length} posts fetched, ${filteredCount} filtered, ${Math.round(elapsed/1000)}s elapsed`
     );
-    return { posts, filtered: filteredCount };
+    return { posts, filtered: filteredCount, timeoutReached };
   } catch (error) {
     console.error("Reddit ingestion failed:", error);
     throw error;
@@ -398,11 +426,12 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const maxPosts = Math.min(body.max_posts || 200, 200);
+    const maxPosts = Math.min(body.max_posts || 500, 2000); // Allow up to 2000 posts
+    const useAllReddit = body.use_all_reddit || false;
 
-    console.log(`Reddit: Processing up to ${maxPosts} posts`);
+    console.log(`Reddit: Processing up to ${maxPosts} posts${useAllReddit ? ' from ALL of Reddit' : ' from specific subreddits'}`);
 
-    const result = await fetchRedditPosts(maxPosts);
+    const result = await fetchRedditPosts(maxPosts, useAllReddit);
 
     const duration = Date.now() - startTime;
 
@@ -411,7 +440,10 @@ Deno.serve(async (req) => {
         success: true,
         posts: result.posts,
         filtered: result.filtered,
-        message: `Successfully fetched ${result.posts.length} Reddit posts, filtered ${result.filtered}`,
+        timeout_reached: result.timeoutReached,
+        message: result.timeoutReached 
+          ? `Fetched ${result.posts.length} posts before timeout (${Math.round(duration/1000)}s), consider smaller batches`
+          : `Successfully fetched ${result.posts.length} Reddit posts, filtered ${result.filtered}`,
         duration_ms: duration,
         platform_info: {
           name: "reddit",
