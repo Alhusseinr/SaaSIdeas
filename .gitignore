@@ -11,7 +11,7 @@
 !.yarn/versions
 
 /railway-enrich/node_modules
-/railway-erichment/node_modules
+/railway-enrichment/node_modules
 /railway-ideas/node_modules
 
 # testing
