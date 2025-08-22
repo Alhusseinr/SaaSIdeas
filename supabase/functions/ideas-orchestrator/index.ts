@@ -662,7 +662,7 @@ async function generateClusterTheme(cluster: PostCluster): Promise<string> {
     return `Cluster of ${cluster.size} similar complaints`;
   }
 
-  const samplePosts = cluster.representative_posts.slice(0, 5);
+  const samplePosts = cluster.representative_posts.slice(0, 15); // Increased from 5 to 15
   const postTexts = samplePosts.map(post => {
     const content = `${post.title || ""}\n${post.body || ""}`.slice(0, 300);
     return content.replace(/\s+/g, ' ').trim();

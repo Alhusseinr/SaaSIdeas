@@ -17,13 +17,13 @@ const MAX_REQUESTS_PER_WINDOW = 5;
 const rateLimitMap = new Map<string, { count: number, windowStart: number }>();
 
 // Platform configuration - using hybrid approach (Railway for heavy ingestion, Supabase for others)
-const RAILWAY_ENDPOINT = Deno.env.get("RAILWAY_REDDIT_ENDPOINT"); // Set this to your Railway URL
+const RAILWAY_REDDIT_ENDPOINT = Deno.env.get("RAILWAY_REDDIT_ENDPOINT"); // Reddit ingestion
 
 const PLATFORMS = {
   reddit: { 
     enabled: true, 
-    endpoint: RAILWAY_ENDPOINT || "/functions/v1/ingest-reddit", // Use Railway if available, fallback to Supabase
-    isExternal: !!RAILWAY_ENDPOINT // Flag to handle external calls differently
+    endpoint: RAILWAY_REDDIT_ENDPOINT || "/functions/v1/ingest-reddit", // Use Railway if available, fallback to Supabase
+    isExternal: !!RAILWAY_REDDIT_ENDPOINT // Flag to handle external calls differently
   },
   twitter: { enabled: true, endpoint: "/functions/v1/ingest-twitter", isExternal: false },
   hackernews: { enabled: true, endpoint: "/functions/v1/ingest-hackernews", isExternal: false },
@@ -33,7 +33,12 @@ const PLATFORMS = {
   youtube: { enabled: true, endpoint: "/functions/v1/ingest-youtube", isExternal: false },
   twitch: { enabled: true, endpoint: "/functions/v1/ingest-twitch", isExternal: false },
   podcast: { enabled: true, endpoint: "/functions/v1/ingest-podcast", isExternal: false },
-  notion: { enabled: true, endpoint: "/functions/v1/ingest-notion", isExternal: false }
+  notion: { enabled: true, endpoint: "/functions/v1/ingest-notion", isExternal: false },
+  quora: { enabled: true, endpoint: "/functions/v1/ingest-quora", isExternal: false },
+  medium: { enabled: true, endpoint: "/functions/v1/ingest-medium", isExternal: false },
+  devto: { enabled: true, endpoint: "/functions/v1/ingest-devto", isExternal: false },
+  lobsters: { enabled: true, endpoint: "/functions/v1/ingest-lobsters", isExternal: false },
+  indiehackers: { enabled: true, endpoint: "/functions/v1/ingest-indiehackers", isExternal: false }
 };
 
 interface PostData {
@@ -216,10 +221,19 @@ async function callPlatformFunction(
     if (isExternal) {
       // External Railway endpoint - use full URL and adapt parameters
       url = endpoint;
-      requestBody = {
-        max_posts: parameters.max_posts || 1000, // Allow larger requests for Railway
-        use_all_reddit: parameters.use_all_reddit !== undefined ? parameters.use_all_reddit : true
-      };
+      if (platform === 'reddit') {
+        requestBody = {
+          max_posts: parameters.max_posts || 1000, // Allow larger requests for Railway
+          use_all_reddit: parameters.use_all_reddit !== undefined ? parameters.use_all_reddit : true
+        };
+        requestBody = {
+          max_videos_per_hashtag: parameters.max_videos_per_hashtag || 3,
+          max_comments_per_video: parameters.max_comments_per_video || 20,
+          hashtags: parameters.hashtags || null
+        };
+      } else {
+        requestBody = parameters;
+      }
       console.log(`Calling ${platform} via Railway: ${url}`);
     } else {
       // Internal Supabase endpoint - use relative URL
@@ -308,7 +322,7 @@ async function executeOrchestrationJob(jobId: string, parameters: any): Promise<
           youtube: 'pending',
           twitch: 'pending',
           podcast: 'pending',
-          notion: 'pending'
+          notion: 'pending',
         }
       }
     });
@@ -344,7 +358,7 @@ async function executeOrchestrationJob(jobId: string, parameters: any): Promise<
       youtube: enabledPlatforms.some(([p]) => p === 'youtube') ? 'running' : 'pending',
       twitch: enabledPlatforms.some(([p]) => p === 'twitch') ? 'running' : 'pending',
       podcast: enabledPlatforms.some(([p]) => p === 'podcast') ? 'running' : 'pending',
-      notion: enabledPlatforms.some(([p]) => p === 'notion') ? 'running' : 'pending'
+      notion: enabledPlatforms.some(([p]) => p === 'notion') ? 'running' : 'pending',
     };
 
     // Prepare headers for platform function calls

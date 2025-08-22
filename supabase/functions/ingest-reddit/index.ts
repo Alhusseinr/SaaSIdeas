@@ -105,9 +105,87 @@ async function getRedditToken(): Promise<string> {
   return data.access_token;
 }
 
+async function fetchRedditComments(
+  accessToken: string,
+  postId: string,
+  subreddit: string,
+  maxComments: number = 10
+): Promise<PostData[]> {
+  const comments: PostData[] = [];
+  const nowISO = new Date().toISOString();
+  
+  try {
+    // Fetch comments for a specific post
+    const url = `https://oauth.reddit.com/r/${subreddit}/comments/${postId}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "User-Agent": USER_AGENT,
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`Failed to fetch comments for post ${postId}: ${response.status}`);
+      return comments;
+    }
+
+    const data = await response.json();
+    
+    // Reddit returns an array with 2 elements: [post, comments]
+    const commentListing = data[1];
+    if (!commentListing?.data?.children) return comments;
+
+    let commentCount = 0;
+    for (const commentChild of commentListing.data.children) {
+      if (commentCount >= maxComments) break;
+      
+      const comment = commentChild.data;
+      if (!comment || !comment.body || comment.body === '[deleted]' || comment.body === '[removed]') continue;
+      
+      // Filter for complaint/problem-related comments
+      const commentText = comment.body.toLowerCase();
+      const hasComplaintTerms = [
+        "frustrating", "annoying", "hate", "terrible", "awful", "broken", 
+        "doesn't work", "slow", "buggy", "wish there was", "need a tool",
+        "why isn't there", "should make", "would pay for"
+      ].some(term => commentText.includes(term));
+      
+      if (!hasComplaintTerms) continue;
+      
+      // Check if software-focused
+      if (!isSoftwareFocused("", comment.body)) continue;
+
+      const createdISO = new Date((comment.created_utc ?? comment.created) * 1000).toISOString();
+      const hash = await makeHash("reddit", comment.id, comment.body, createdISO);
+
+      comments.push({
+        platform: "reddit",
+        platform_post_id: String(comment.id),
+        author: comment.author ? String(comment.author) : null,
+        url: comment.permalink ? `https://www.reddit.com${comment.permalink}` : null,
+        created_at: createdISO,
+        fetched_at: nowISO,
+        title: `Comment on r/${subreddit}`,
+        body: comment.body,
+        hash: hash,
+      });
+      
+      commentCount++;
+    }
+    
+    console.log(`Fetched ${comments.length} relevant comments from post ${postId}`);
+    return comments;
+  } catch (error) {
+    console.error(`Error fetching comments for post ${postId}:`, error);
+    return comments;
+  }
+}
+
 async function fetchRedditPosts(
   maxPosts: number = 30,
-  useAllReddit: boolean = false
+  useAllReddit: boolean = false,
+  includeComments: boolean = false
 ): Promise<{ posts: PostData[]; filtered: number; timeoutReached: boolean }> {
   const posts: PostData[] = [];
   const nowISO = new Date().toISOString();
@@ -298,7 +376,9 @@ async function fetchRedditPosts(
     const selectedSubreddits = useAllReddit ? ["all"] : subreddits; // Use all subreddits or just "all"
     const selectedPhrases = phrases; // Use all phrases for maximum coverage
 
-    for (const subreddit of selectedSubreddits) {
+    console.log(`Processing up to ${maxPosts} total posts from ${selectedSubreddits.length} subreddits with ${selectedPhrases.length} phrases`);
+
+    subredditLoop: for (const subreddit of selectedSubreddits) {
       // Check timeout before each subreddit
       if (Date.now() - startTime > MAX_PROCESSING_TIME) {
         console.log(`Timeout reached at subreddit ${subreddit}, collected ${posts.length} posts`);
@@ -307,16 +387,22 @@ async function fetchRedditPosts(
       }
       
       for (const phrase of selectedPhrases) {
-        // Check timeout before each phrase
+        // Check both timeout and posts limit before each phrase
         if (Date.now() - startTime > MAX_PROCESSING_TIME) {
           console.log(`Timeout reached at phrase "${phrase}", collected ${posts.length} posts`);
           timeoutReached = true;
           break;
         }
         
+        if (posts.length >= maxPosts) {
+          console.log(`Reached maxPosts limit of ${maxPosts}, stopping at phrase "${phrase}"`);
+          break subredditLoop;
+        }
+        
         try {
-          // Calculate dynamic limit based on total posts requested
-          const postsPerSearch = Math.min(25, Math.ceil(maxPosts / (selectedSubreddits.length * selectedPhrases.length)));
+          // Calculate dynamic limit based on remaining posts needed
+          const remainingPosts = maxPosts - posts.length;
+          const postsPerSearch = Math.min(25, remainingPosts);
           
           const url = `https://oauth.reddit.com/r/${subreddit}/search?limit=${postsPerSearch}&sort=new&restrict_sr=1&t=week&q=${encodeURIComponent(
             `"${phrase}"`
@@ -346,6 +432,12 @@ async function fetchRedditPosts(
           const data = await response.json();
 
           for (const child of data?.data?.children ?? []) {
+            // Check posts limit inside the loop
+            if (posts.length >= maxPosts) {
+              console.log(`Reached maxPosts limit of ${maxPosts} while processing posts`);
+              break subredditLoop;
+            }
+            
             const p = child.data;
             const body = `${p.title ?? ""}\n\n${p.selftext ?? ""}`.trim();
 
@@ -372,7 +464,18 @@ async function fetchRedditPosts(
               hash: hash,
             });
 
-            // Stop if we have enough posts
+            // Fetch comments if enabled and post has engagement (score > 10 or num_comments > 5)
+            if (includeComments && (p.score > 10 || p.num_comments > 5)) {
+              try {
+                const postComments = await fetchRedditComments(accessToken, p.id, subreddit, 5); // Limit to 5 comments per post for edge functions
+                posts.push(...postComments);
+                await sleep(100); // Small delay for comment fetching
+              } catch (commentError) {
+                console.warn(`Failed to fetch comments for post ${p.id}:`, commentError);
+              }
+            }
+
+            // Stop if we have enough posts (including comments)
             if (posts.length >= maxPosts) break;
           }
 
@@ -428,10 +531,11 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const maxPosts = Math.min(body.max_posts || 500, 2000); // Allow up to 2000 posts
     const useAllReddit = body.use_all_reddit || false;
+    const includeComments = body.include_comments || false;
 
-    console.log(`Reddit: Processing up to ${maxPosts} posts${useAllReddit ? ' from ALL of Reddit' : ' from specific subreddits'}`);
+    console.log(`Reddit: Processing up to ${maxPosts} posts${useAllReddit ? ' from ALL of Reddit' : ' from specific subreddits'}${includeComments ? ' WITH comments' : ''}`);
 
-    const result = await fetchRedditPosts(maxPosts, useAllReddit);
+    const result = await fetchRedditPosts(maxPosts, useAllReddit, includeComments);
 
     const duration = Date.now() - startTime;
 

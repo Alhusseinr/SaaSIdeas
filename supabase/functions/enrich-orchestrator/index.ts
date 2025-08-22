@@ -5,6 +5,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
+// Railway enrichment service configuration
+const RAILWAY_ENRICHMENT_ENDPOINT = Deno.env.get("RAILWAY_ENRICHMENT_ENDPOINT") || "https://enrichment-production-8fd0.up.railway.app";
+
 // Function version and metadata
 const FUNCTION_VERSION = "2.0.0";
 const LAST_UPDATED = "2025-01-17T15:00:00Z";
@@ -949,6 +952,48 @@ function combineClassificationResults(results: any[]): any {
   };
 }
 
+// Call Railway enrichment service for high-performance processing
+async function callRailwayEnrichment(posts: any[]): Promise<{ success: any[], failed: any[] }> {
+  const startTime = Date.now();
+  console.log(`Calling Railway enrichment service for ${posts.length} posts...`);
+  
+  try {
+    const response = await fetch(`${RAILWAY_ENRICHMENT_ENDPOINT}/enrich-posts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        posts: posts.map(post => ({
+          id: post.id,
+          title: post.title || "",
+          body: post.body || "",
+          platform: post.platform || "unknown"
+        }))
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Railway enrichment failed: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    const duration = Date.now() - startTime;
+    
+    console.log(`Railway enrichment completed in ${duration}ms: ${result.enriched?.length || 0} success, ${result.failed?.length || 0} failed`);
+    
+    return {
+      success: result.enriched || [],
+      failed: result.failed || []
+    };
+
+  } catch (error) {
+    console.error("Railway enrichment service error:", error);
+    throw error;
+  }
+}
+
 async function processPostBatch(
   posts: any[], 
   supabase: any, 
@@ -961,263 +1006,97 @@ async function processPostBatch(
   let success = 0;
   let failed = 0;
   let skipped = 0;
-  
-  // Determine optimal concurrency based on batch complexity
-  const avgComplexity = posts.reduce((sum, post) => {
-    const complexity = post.analysis?.complexity || 'medium';
-    return sum + (complexity === 'complex' ? 3 : complexity === 'medium' ? 2 : 1);
-  }, 0) / posts.length;
-  
-  const optimalConcurrency = Math.min(
-    avgComplexity > 2.5 ? 4 : avgComplexity > 1.5 ? 6 : 8,
-    CONCURRENT_REQUESTS
-  );
-  
-  console.log(`Batch ${batchNumber}: Processing ${posts.length} posts with ${optimalConcurrency} workers (avg complexity: ${avgComplexity.toFixed(1)})`);
-  
-  // Create semaphore for concurrency control
-  const semaphore = new Array(optimalConcurrency).fill(null);
-  let postIndex = 0;
-  
-  const processPost = async (post: any) => {
-    let localDbConnection: any = null;
+
+  console.log(`Batch ${batchNumber}: Processing ${posts.length} posts via Railway enrichment service`);
+
+  // Filter out already enriched posts
+  const postsToEnrich = posts.filter(post => {
+    const isFullyEnriched = post.sentiment !== null && post.keywords !== null && post.embedding !== null && post.enriched_at;
+    if (isFullyEnriched) {
+      console.log(`Skipping already enriched post ${post.id}`);
+      skipped++;
+      return false;
+    }
+    return true;
+  });
+
+  if (postsToEnrich.length === 0) {
+    console.log(`Batch ${batchNumber}: All posts already enriched`);
+    return { success, failed, skipped };
+  }
+
+  try {
+    // Call Railway enrichment service
+    const enrichmentResult = await callRailwayEnrichment(postsToEnrich);
     
-    try {
-      // Get dedicated connection for this post to prevent blocking
-      localDbConnection = await dbPool.getConnection();
-      console.log(`Processing post ${post.id}...`);
-      
-      // Mark post as processing (optimistic update)
+    // Update database with enrichment results
+    for (const enrichedPost of enrichmentResult.success) {
       try {
-        await localDbConnection
-          .from("posts")
-          .update({ enrich_status: "processing" })
-          .eq("id", post.id);
-      } catch (statusError) {
-        console.warn(`Could not update status to processing for post ${post.id}:`, statusError);
-        // Continue processing even if status update fails
-      }
-      
-      const text = `${post.title || ""}\n${post.body || ""}`.trim();
-      
-      // Skip if already enriched (optimization)
-      if (post.sentiment !== null && post.keywords !== null && post.embedding !== null && post.enriched_at) {
-        console.log(`Skipping already enriched post ${post.id} (sentiment: ${post.sentiment}, keywords: ${post.keywords?.length || 0}, embedding: ${post.embedding ? 'present' : 'missing'}, enriched: ${post.enriched_at})`);
-        skipped++;
-        return;
-      }
-      
-      // Partial success: Try classification and embedding but continue even if they fail
-      let classification = null;
-      let embedding = null;
-      let classificationFailed = false;
-      let embeddingFailed = false;
-      
-      // Run classification and embedding in parallel if needed
-      const needsClassification = post.sentiment === null || post.keywords === null;
-      const needsEmbedding = post.embedding === null;
-      
-      console.log(`Post ${post.id} enrichment status: sentiment=${post.sentiment !== null ? 'present' : 'MISSING'}, keywords=${post.keywords !== null ? 'present' : 'MISSING'}, embedding=${post.embedding !== null ? 'present' : 'MISSING'}, enriched_at=${post.enriched_at ? 'present' : 'MISSING'}`);
-      console.log(`Post ${post.id} needs: classification=${needsClassification}, embedding=${needsEmbedding}`);
-      
-      if (needsClassification || needsEmbedding) {
-        const tasks: Promise<any>[] = [];
-        
-        if (needsClassification) {
-          tasks.push(
-            classifyText(text).catch(error => {
-              console.warn(`Classification failed for post ${post.id}:`, error.message);
-              classificationFailed = true;
-              return null;
-            })
-          );
-        } else {
-          tasks.push(Promise.resolve(null));
-        }
-        
-        if (needsEmbedding) {
-          tasks.push(
-            embedText(text).catch(error => {
-              console.warn(`Embedding failed for post ${post.id}:`, error.message);
-              embeddingFailed = true;
-              return null;
-            })
-          );
-        } else {
-          tasks.push(Promise.resolve(null));
-        }
-        
-        console.log(`Processing post ${post.id} (${text.length} chars) - needs: ${needsClassification ? 'classification' : ''} ${needsEmbedding ? 'embedding' : ''}`);
-        
-        const [classificationResult, embeddingResult] = await Promise.all(tasks);
-        
-        if (needsClassification) {
-          classification = classificationResult;
-        }
-        
-        if (needsEmbedding) {
-          embedding = embeddingResult;
-        }
-        
-        console.log(`Results for post ${post.id}: classification=${classification ? 'success' : 'failed'}, embedding=${embedding ? 'success' : 'failed'}`);
-      }
-      
-      const updateData: any = {
-        enriched_at: new Date().toISOString(),
-        enrich_status: (classificationFailed && embeddingFailed) ? "completed" : "completed" // Mark as completed even with partial success
-      };
-      
-      // Apply classification results if available
-      if (classification && !classificationFailed) {
-        updateData.sentiment = typeof classification?.sentiment_score === "number" ? classification.sentiment_score : null;
-        updateData.is_complaint = Boolean(classification?.is_complaint);
-        updateData.keywords = Array.isArray(classification?.keywords) ? classification.keywords : [];
-      } else if (classificationFailed) {
-        // Partial success: at least mark that we attempted enrichment
-        console.log(`Storing partial classification data for post ${post.id}`);
-        if (needsClassification) {
-          updateData.sentiment = null; // Explicitly mark as attempted but failed
-          updateData.is_complaint = false; // Safe default
-          updateData.keywords = []; // Empty array
-        }
-      }
-      
-      // Apply embedding results if available
-      if (embedding && !embeddingFailed) {
-        updateData.embedding = embedding;
-      } else if (embeddingFailed) {
-        console.log(`Storing partial embedding data for post ${post.id}`);
-        if (needsEmbedding) {
-          updateData.embedding = null; // Explicitly mark as attempted but failed
-        }
-      }
-      
-      // Store complexity analysis for analytics and future optimizations
-      if (post.analysis) {
-        updateData.complexity_score = post.analysis.complexity;
-        updateData.priority_score = Math.round(post.analysis.priority * 10) / 10; // Round to 1 decimal
-      }
-      
-      console.log(`Updating post ${post.id} with data:`, updateData);
-      
-      // Partial success: Try database update with fallback strategy
-      let updateSucceeded = false;
-      
-      try {
-        const { error } = await localDbConnection
+        const updateData = {
+          sentiment: enrichedPost.sentiment,
+          is_complaint: enrichedPost.is_complaint,
+          keywords: enrichedPost.keywords,
+          embedding: enrichedPost.embedding,
+          enriched_at: new Date().toISOString(),
+          enrich_status: "completed"
+        };
+
+        const { error } = await supabase
           .from("posts")
           .update(updateData)
-          .eq("id", post.id);
-          
+          .eq("id", enrichedPost.id);
+
         if (error) {
-          // Fallback strategy: try with just basic fields
-          if (error.message.includes("column") || error.message.includes("does not exist")) {
-            console.warn(`Column error for post ${post.id}, trying basic update:`, error.message);
-            
-            const basicUpdateData = {
-              enriched_at: updateData.enriched_at,
-              sentiment: updateData.sentiment,
-              is_complaint: updateData.is_complaint,
-              keywords: updateData.keywords,
-              enrich_status: "completed"
-            };
-            
-            const { error: basicError } = await localDbConnection
-              .from("posts")
-              .update(basicUpdateData)
-              .eq("id", post.id);
-              
-            if (basicError) {
-              console.error(`Basic update also failed for post ${post.id}:`, basicError);
-              updateSucceeded = false;
-            } else {
-              console.log(`Basic update succeeded for post ${post.id}`);
-              updateSucceeded = true;
-            }
-          } else {
-            console.error(`Database error for post ${post.id}:`, error);
-            updateSucceeded = false;
-          }
+          console.error(`Failed to update post ${enrichedPost.id}:`, error);
+          failed++;
         } else {
-          console.log(`Full update succeeded for post ${post.id}`);
-          updateSucceeded = true;
+          console.log(`Successfully updated post ${enrichedPost.id}`);
+          success++;
         }
-      } catch (dbError) {
-        console.error(`Database exception for post ${post.id}:`, dbError);
-        updateSucceeded = false;
-      }
-      
-      // Count partial success as success if we at least marked it as processed
-      if (updateSucceeded) {
-        success++;
-        console.log(`Successfully processed post ${post.id} (classification: ${!classificationFailed ? 'success' : 'partial'})`);
-      } else {
+      } catch (updateError) {
+        console.error(`Exception updating post ${enrichedPost.id}:`, updateError);
         failed++;
-        console.log(`Failed to process post ${post.id}`);
       }
-      
-    } catch (error) {
-      console.error(`Error processing post ${post.id}:`, error);
-      console.error(`Error details:`, {
-        message: error.message,
-        stack: error.stack,
-        post: { id: post.id, title: post.title?.substring(0, 100) }
-      });
-      
-      // Partial success: At least try to mark the post as failed
+    }
+
+    // Handle failed enrichments
+    for (const failedPost of enrichmentResult.failed) {
       try {
-        if (localDbConnection) {
-          await localDbConnection
-            .from("posts")
-            .update({ 
-              enrich_status: "failed",
-              enriched_at: new Date().toISOString()
-            })
-            .eq("id", post.id);
-        }
+        await supabase
+          .from("posts")
+          .update({ 
+            enrich_status: "failed",
+            enriched_at: new Date().toISOString()
+          })
+          .eq("id", failedPost.id);
+        failed++;
       } catch (statusError) {
-        console.warn(`Could not update status to failed for post ${post.id}:`, statusError);
-        // Continue - don't let status update failures block the process
-      }
-      
-      failed++;
-    } finally {
-      // Always release the connection
-      if (localDbConnection) {
-        dbPool.releaseConnection(localDbConnection);
+        console.warn(`Could not update failed status for post ${failedPost.id}:`, statusError);
+        failed++;
       }
     }
-  };
-  
-  // Process with enhanced concurrency control
-  const workers = semaphore.map(async (_, workerIndex) => {
-    while (postIndex < posts.length) {
-      const currentIndex = postIndex++;
-      if (currentIndex < posts.length) {
-        await processPost(posts[currentIndex]);
-        
-        // Update progress every 2 posts for better monitoring
-        if ((success + failed + skipped) % 2 === 0 || currentIndex === posts.length - 1) {
-          await updateJobStatus(jobId, {
-            progress: {
-              current_step: `Processing batch ${batchNumber}/${totalBatches} (worker ${workerIndex + 1})`,
-              total_steps: 4,
-              completed_steps: 2,
-              posts_processed: totalPostsProcessed + success + failed + skipped,
-              posts_total: totalPostsCount,
-              current_batch: batchNumber,
-              total_batches: totalBatches,
-              posts_success: totalPostsProcessed + success,
-              posts_failed: failed
-            }
-          });
-        }
+
+  } catch (enrichmentError) {
+    console.error(`Railway enrichment service failed for batch ${batchNumber}:`, enrichmentError);
+    
+    // Mark all posts as failed
+    for (const post of postsToEnrich) {
+      try {
+        await supabase
+          .from("posts")
+          .update({ 
+            enrich_status: "failed",
+            enriched_at: new Date().toISOString()
+          })
+          .eq("id", post.id);
+        failed++;
+      } catch (statusError) {
+        console.warn(`Could not update failed status for post ${post.id}:`, statusError);
+        failed++;
       }
     }
-  });
-  
-  await Promise.all(workers);
-  
+  }
+
   console.log(`Batch ${batchNumber} completed: ${success} success, ${failed} failed, ${skipped} skipped`);
   return { success, failed, skipped };
 }
@@ -1238,7 +1117,7 @@ async function executeEnrichmentJob(jobId: string, parameters: any): Promise<voi
       status: 'running',
       started_at: new Date().toISOString(),
       progress: {
-        current_step: 'Counting posts to enrich',
+        current_step: 'Starting Railway enrichment orchestration',
         total_steps: 4,
         completed_steps: 0,
         posts_processed: 0,
@@ -1251,544 +1130,138 @@ async function executeEnrichmentJob(jobId: string, parameters: any): Promise<voi
     });
 
     const startTime = Date.now();
-    console.log(`Job ${jobId}: Starting enrichment process...`);
+    console.log(`Job ${jobId}: Starting Railway enrichment orchestration...`);
 
-    // Count total posts to process with priority query
-    // First, let's check what posts exist and their current enrichment status
-    console.log(`Job ${jobId}: Diagnosing current post state...`);
-    
-    // Get total posts count for comparison
-    const { count: allPostsCount, error: allPostsError } = await supabase
-      .from("posts")
-      .select("*", { count: 'exact', head: true });
-    
-    if (allPostsError) {
-      console.warn(`Could not count all posts: ${allPostsError.message}`);
-    } else {
-      console.log(`Total posts in database: ${allPostsCount || 0}`);
-    }
-    
-    // Check enrichment status distribution
-    const { data: enrichmentStats, error: statsError } = await supabase
-      .from("posts")
-      .select("sentiment, keywords, enriched_at, enrich_status, embedding");
-    
-    if (statsError) {
-      console.warn(`Enrichment stats query failed: ${statsError.message}`);
-    } else {
-      const totalPosts = enrichmentStats?.length || 0;
-      const alreadyEnriched = enrichmentStats?.filter(p => 
-        p.enriched_at && p.sentiment !== null && p.keywords !== null && p.embedding !== null
-      ).length || 0;
-      const partiallyEnriched = enrichmentStats?.filter(p => 
-        p.enriched_at && (p.sentiment === null || p.keywords === null || p.embedding === null)
-      ).length || 0;
-      const notEnriched = totalPosts - alreadyEnriched - partiallyEnriched;
-      
-      // Debug: Count specific issues
-      const missingEmbedding = enrichmentStats?.filter(p => p.embedding === null).length || 0;
-      const missingSentiment = enrichmentStats?.filter(p => p.sentiment === null).length || 0;
-      const missingKeywords = enrichmentStats?.filter(p => p.keywords === null).length || 0;
-      const missingEnrichedAt = enrichmentStats?.filter(p => p.enriched_at === null).length || 0;
-      
-      console.log(`🔍 DETAILED BREAKDOWN:`);
-      console.log(`  - Posts missing embedding: ${missingEmbedding}`);
-      console.log(`  - Posts missing sentiment: ${missingSentiment}`);
-      console.log(`  - Posts missing keywords: ${missingKeywords}`);
-      console.log(`  - Posts missing enriched_at: ${missingEnrichedAt}`);
-      
-      // Show sample posts missing embeddings
-      if (missingEmbedding > 0) {
-        const sampleMissingEmbedding = enrichmentStats?.filter(p => p.embedding === null).slice(0, 3);
-        console.log(`📝 Sample posts missing embeddings:`);
-        sampleMissingEmbedding?.forEach(post => {
-          console.log(`  Post: sentiment=${post.sentiment !== null ? 'present' : 'NULL'}, keywords=${post.keywords !== null ? 'present' : 'NULL'}, embedding=NULL, enriched_at=${post.enriched_at ? 'present' : 'NULL'}, enrich_status=${post.enrich_status || 'NULL'}`);
-        });
-      }
-      
-      console.log(`Enrichment status breakdown:`);
-      console.log(`  - Total posts: ${totalPosts}`);
-      console.log(`  - Fully enriched: ${alreadyEnriched} (${totalPosts > 0 ? ((alreadyEnriched / totalPosts) * 100).toFixed(1) : 0}%)`);
-      console.log(`  - Partially enriched: ${partiallyEnriched} (${totalPosts > 0 ? ((partiallyEnriched / totalPosts) * 100).toFixed(1) : 0}%)`);
-      console.log(`  - Not enriched: ${notEnriched} (${totalPosts > 0 ? ((notEnriched / totalPosts) * 100).toFixed(1) : 0}%)`);
-      
-      if (alreadyEnriched === totalPosts && totalPosts > 0) {
-        console.log(`🎉 ALL POSTS ARE ALREADY FULLY ENRICHED! No work needed.`);
-      } else if (notEnriched === 0 && totalPosts > 0) {
-        console.log(`ℹ️  All posts have been processed (some partially enriched). Consider re-processing partial ones.`);
-      }
-    }
-    
-    const { data: diagPosts, error: diagError } = await supabase
-      .from("posts")
-      .select("id, sentiment, keywords, enriched_at, enrich_status, embedding")
-      .limit(5);
-    
-    if (diagError) {
-      console.warn(`Diagnostic query failed: ${diagError.message}`);
-    } else {
-      console.log(`Sample posts:`, diagPosts);
-    }
-    
-    // Try multiple query approaches to find posts to enrich
+    // Count posts needing enrichment
     let totalPostsCount = 0;
-    let countError: any = null;
-    
-    // Try the specific enrich_status query first
-    const statusResult = await supabase
-      .from("posts")
-      .select("*", { count: 'exact', head: true })
-      .or("enrich_status.is.null,enrich_status.eq.pending,enrich_status.eq.failed");
-    
-    console.log(`Enrich status query result: count=${statusResult.count}, error=${statusResult.error?.message || 'none'}`);
-    
-    // ALWAYS check for missing embeddings specifically, regardless of enrich_status
-    const missingEmbeddingResult = await supabase
-      .from("posts")
-      .select("*", { count: 'exact', head: true })
-      .is("embedding", null);
-    
-    console.log(`Missing embedding query result: count=${missingEmbeddingResult.count}, error=${missingEmbeddingResult.error?.message || 'none'}`);
-    
-    if (statusResult.error) {
-      console.warn(`Enrich status query failed: ${statusResult.error.message}`);
-      
-      // Fallback: try querying posts without enriched_at or with null sentiment/embedding
-      const fallbackResult = await supabase
+    try {
+      const { count, error } = await supabase
         .from("posts")
         .select("*", { count: 'exact', head: true })
         .or("enriched_at.is.null,sentiment.is.null,embedding.is.null");
       
-      console.log(`Fallback query result: count=${fallbackResult.count}, error=${fallbackResult.error?.message || 'none'}`);
-      
-      if (fallbackResult.error) {
-        console.warn(`Fallback query also failed: ${fallbackResult.error.message}`);
-        
-        // Try a more explicit query to find incomplete enrichments
-        const explicitResult = await supabase
+      if (error) {
+        console.warn(`Count query failed: ${error.message}`);
+        // Fallback count
+        const allPostsResult = await supabase
           .from("posts")
-          .select("*", { count: 'exact', head: true })
-          .not("sentiment", "is", null)
-          .not("keywords", "is", null)
-          .not("embedding", "is", null)
-          .not("enriched_at", "is", null);
-        
-        if (explicitResult.error) {
-          console.warn(`Explicit complete enrichment query failed: ${explicitResult.error.message}`);
-          
-          // Last resort: count all posts and assume they need enrichment
-          const allPostsResult = await supabase
-            .from("posts")
-            .select("*", { count: 'exact', head: true });
-          
-          totalPostsCount = allPostsResult.count || 0;
-          countError = allPostsResult.error;
-          console.log(`Using all posts count (assume all need enrichment): ${totalPostsCount}`);
-        } else {
-          // Subtract complete posts from total to get posts that need enrichment
-          const allPostsResult = await supabase
-            .from("posts")
-            .select("*", { count: 'exact', head: true });
-          
-          const totalPosts = allPostsResult.count || 0;
-          const completePosts = explicitResult.count || 0;
-          totalPostsCount = Math.max(0, totalPosts - completePosts);
-          console.log(`Using explicit calculation: ${totalPosts} total - ${completePosts} complete = ${totalPostsCount} need enrichment`);
-        }
+          .select("*", { count: 'exact', head: true });
+        totalPostsCount = allPostsResult.count || 0;
       } else {
-        totalPostsCount = fallbackResult.count || 0;
-        console.log(`Using fallback query count: ${totalPostsCount}`);
+        totalPostsCount = count || 0;
       }
-    } else {
-      totalPostsCount = statusResult.count || 0;
-      console.log(`Using enrich_status query count: ${totalPostsCount}`);
-      
-      // If we found more posts missing embeddings than the status query found, use that count instead
-      const missingEmbeddingCount = missingEmbeddingResult.count || 0;
-      if (missingEmbeddingCount > totalPostsCount) {
-        console.log(`⚠️  Missing embedding count (${missingEmbeddingCount}) is higher than status query count (${totalPostsCount})`);
-        console.log(`This suggests posts have enrich_status='completed' but missing embeddings`);
-        totalPostsCount = missingEmbeddingCount;
-        console.log(`Updated count to ${totalPostsCount} to include missing embeddings`);
-      }
-    }
-    
-    if (countError) {
-      throw new Error(`Failed to count posts: ${countError.message}`);
+    } catch (countError) {
+      console.error("Error counting posts:", countError);
+      totalPostsCount = 0;
     }
 
-    const totalPosts = totalPostsCount || 0;
-    console.log(`Job ${jobId}: Found ${totalPosts} posts to enrich`);
+    console.log(`Job ${jobId}: Found ${totalPostsCount} posts to enrich`);
 
-    await updateJobStatus(jobId, {
-      progress: {
-        current_step: 'Analyzing posts and creating smart batches',
-        total_steps: 4,
-        completed_steps: 1,
-        posts_processed: 0,
-        posts_total: totalPosts,
-        current_batch: 0,
-        total_batches: 0,
-        posts_success: 0,
-        posts_failed: 0
-      }
-    });
+    if (totalPostsCount === 0) {
+      const result = {
+        status: "success",
+        message: "No posts need enrichment",
+        architecture: "railway_enrichment_orchestrator",
+        duration_ms: Date.now() - startTime,
+        stats: {
+          total_processed: 0,
+          successful: 0,
+          failed: 0,
+          skipped: 0
+        }
+      };
 
+      await updateJobStatus(jobId, {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        result
+      });
+
+      console.log(`Job ${jobId}: No posts to enrich`);
+      return;
+    }
+
+    // Process posts using Railway service with larger batches
+    const RAILWAY_BATCH_SIZE = 50; // Railway can handle larger batches
     let totalProcessed = 0;
     let totalSuccess = 0;
     let totalFailed = 0;
     let totalSkipped = 0;
     let batchCount = 0;
     
-    // Process posts using smart batching and priority queue with time management
-    while (Date.now() - startTime < MAX_PROCESSING_TIME) {
-      const timeRemaining = MAX_PROCESSING_TIME - (Date.now() - startTime);
-      const timeWithBuffer = timeRemaining - SAFETY_BUFFER_MS;
+    while (totalProcessed < totalPostsCount) {
+      const remainingPosts = totalPostsCount - totalProcessed;
+      const batchSize = Math.min(RAILWAY_BATCH_SIZE, remainingPosts);
       
-      // Stop processing if we're getting close to timeout
-      if (timeWithBuffer <= 0) {
-        console.log(`Job ${jobId}: Approaching timeout limit, stopping processing gracefully`);
-        break;
-      }
-      
-      console.log(`Job ${jobId}: Time remaining: ${Math.round(timeRemaining / 60000)}min, with buffer: ${Math.round(timeWithBuffer / 60000)}min`);
-      // Check hard limits
-      if (totalProcessed >= MAX_POSTS_PER_RUN) {
-        console.log(`Job ${jobId}: Reached hard limit of ${MAX_POSTS_PER_RUN} posts per run, stopping`);
-        break;
-      }
-      
-      // Fetch smaller batch for analysis and smart batching
-      const remainingInLimit = MAX_POSTS_PER_RUN - totalProcessed;
-      const fetchSize = Math.min(50, totalPosts - totalProcessed, remainingInLimit);
-      if (fetchSize <= 0) break;
-
-      // Try to fetch posts with the same fallback logic as counting
+      // Fetch posts needing enrichment
       let posts: any[] = [];
-      let error: any = null;
-      
-      // Try enrich_status query first
-      const statusQuery = await supabase
-        .from("posts")
-        .select("id, title, body, sentiment, keywords, enriched_at, created_at, enrich_status, embedding")
-        .or("enrich_status.is.null,enrich_status.eq.pending,enrich_status.eq.failed")
-        .order("created_at", { ascending: false })
-        .limit(fetchSize);
-      
-      if (statusQuery.error) {
-        console.warn(`Enrich status fetch failed: ${statusQuery.error.message}`);
-        
-        // Try specifically fetching posts with missing embeddings first
-        const missingEmbeddingQuery = await supabase
+      try {
+        const { data, error } = await supabase
           .from("posts")
-          .select("id, title, body, sentiment, keywords, enriched_at, created_at, embedding")
-          .is("embedding", null)
+          .select("id, title, body, sentiment, keywords, enriched_at, embedding")
+          .or("enriched_at.is.null,sentiment.is.null,embedding.is.null")
           .order("created_at", { ascending: false })
-          .limit(fetchSize);
+          .limit(batchSize);
         
-        if (missingEmbeddingQuery.error) {
-          console.warn(`Missing embedding fetch failed: ${missingEmbeddingQuery.error.message}`);
-          
-          // Fallback: fetch posts without enriched_at or with null sentiment/embedding
-          let fallbackQuery = supabase
-            .from("posts")
-            .select("id, title, body, sentiment, keywords, enriched_at, created_at, embedding")
-            .or("enriched_at.is.null,sentiment.is.null,embedding.is.null");
-
-          // Add platform filter if specified
-          if (parameters?.platform && parameters.platform !== "all") {
-            fallbackQuery = fallbackQuery.eq("platform", parameters.platform);
-          }
-
-          const fallbackQueryResult = await fallbackQuery
-            .order("created_at", { ascending: false })
-            .limit(fetchSize);
-        
-          if (fallbackQueryResult.error) {
-            console.warn(`Fallback fetch also failed: ${fallbackQueryResult.error.message}`);
-            
-            // Try explicit incomplete posts query
-            let incompleteQuery = supabase
-              .from("posts")
-              .select("id, title, body, sentiment, keywords, enriched_at, created_at, embedding")
-              .or("sentiment.is.null,keywords.is.null,embedding.is.null,enriched_at.is.null");
-
-            // Add platform filter if specified
-            if (parameters?.platform && parameters.platform !== "all") {
-              incompleteQuery = incompleteQuery.eq("platform", parameters.platform);
-            }
-
-            const incompleteQueryResult = await incompleteQuery
-              .order("created_at", { ascending: false })
-              .limit(fetchSize);
-          
-          if (incompleteQueryResult.error) {
-            console.warn(`Incomplete posts query failed: ${incompleteQueryResult.error.message}`);
-            
-            // Last resort: fetch all posts and filter in code
-            const allPostsQuery = await supabase
-              .from("posts")
-              .select("id, title, body, sentiment, keywords, enriched_at, created_at, embedding")
-              .order("created_at", { ascending: false })
-              .limit(fetchSize);
-            
-            posts = allPostsQuery.data || [];
-            error = allPostsQuery.error;
-            console.log(`Using all posts fetch: ${posts.length} posts`);
-          } else {
-            posts = incompleteQueryResult.data || [];
-            console.log(`Using incomplete posts fetch: ${posts.length} posts`);
-          }
-          } else {
-            posts = fallbackQueryResult.data || [];
-            console.log(`Using fallback fetch: ${posts.length} posts`);
-          }
-        } else {
-          posts = missingEmbeddingQuery.data || [];
-          console.log(`Using missing embedding fetch: ${posts.length} posts`);
-        }
-      } else {
-        posts = statusQuery.data || [];
-        console.log(`Using enrich_status fetch: ${posts.length} posts`);
-        
-        // If the status query didn't find any posts but we know there are missing embeddings, try the missing embedding query
-        if (posts.length === 0 && (missingEmbeddingResult.count || 0) > 0) {
-          console.log(`Status query found 0 posts but ${missingEmbeddingResult.count} posts missing embeddings. Trying missing embedding query...`);
-          
-          const missingEmbeddingFetch = await supabase
-            .from("posts")
-            .select("id, title, body, sentiment, keywords, enriched_at, created_at, embedding")
-            .is("embedding", null)
-            .order("created_at", { ascending: false })
-            .limit(fetchSize);
-          
-          if (!missingEmbeddingFetch.error && missingEmbeddingFetch.data) {
-            posts = missingEmbeddingFetch.data;
-            console.log(`Found ${posts.length} posts with missing embeddings despite status query finding 0`);
-          }
-        }
-      }
-      
-      if (error) {
-        console.error("Error fetching posts:", error);
-        break;
-      }
-      
-      // Filter posts at code level to ensure we catch partial enrichment
-      const postsNeedingEnrichment = posts?.filter(post => {
-        const needsEnrichment = (
-          post.sentiment === null || 
-          post.keywords === null || 
-          post.embedding === null || 
-          post.enriched_at === null
-        );
-        
-        if (!needsEnrichment) {
-          console.log(`Code-level filter: Skipping fully enriched post ${post.id}`);
-        }
-        
-        return needsEnrichment;
-      }) || [];
-      
-      console.log(`Code-level filter: ${posts?.length || 0} fetched → ${postsNeedingEnrichment.length} need enrichment`);
-      
-      if (!postsNeedingEnrichment || postsNeedingEnrichment.length === 0) {
-        console.log(`No more posts to enrich found in this batch (${posts?.length || 0} fetched, ${postsNeedingEnrichment.length} need enrichment)`);
-        if (totalProcessed === 0) {
-          console.log(`⚠️  NO POSTS FOUND TO PROCESS AFTER ${totalPosts} were counted. This suggests:`);
-          console.log(`   - All ${totalPosts} posts may already be fully enriched`);
-          console.log(`   - Database query logic may need adjustment`);
-          console.log(`   - Post counting and fetching queries are inconsistent`);
-          
-          // Debug: Show a sample of what we fetched
-          if (posts && posts.length > 0) {
-            console.log(`Sample of fetched posts (first 3):`);
-            posts.slice(0, 3).forEach(post => {
-              console.log(`  Post ${post.id}: sentiment=${post.sentiment !== null ? 'present' : 'NULL'}, keywords=${post.keywords !== null ? 'present' : 'NULL'}, embedding=${post.embedding !== null ? 'present' : 'NULL'}, enriched_at=${post.enriched_at ? 'present' : 'NULL'}`);
-            });
-          }
-        }
-        break;
-      }
-      
-      // Use the filtered posts
-      posts = postsNeedingEnrichment;
-      
-      console.log(`Job ${jobId}: Analyzing ${posts.length} posts for smart batching...`);
-      
-      // Create smart batches based on complexity and priority
-      const smartBatches = createSmartBatches(posts);
-      const totalBatches = Math.max(batchCount + smartBatches.length, 1);
-      
-      console.log(`Job ${jobId}: Created ${smartBatches.length} smart batches (${smartBatches.map(b => b.length).join(', ')} posts each)`);
-      
-      // Process each smart batch
-      for (const batch of smartBatches) {
-        const timeRemaining = MAX_PROCESSING_TIME - (Date.now() - startTime);
-        const timeWithBuffer = timeRemaining - SAFETY_BUFFER_MS;
-        
-        if (timeWithBuffer <= 0) {
-          console.log(`Job ${jobId}: Reached safe time limit, stopping batch processing`);
+        if (error) {
+          console.error("Error fetching posts:", error);
           break;
         }
         
-        // Estimate time needed for this batch
-        const avgTimePerPost = totalProcessed > 0 ? (Date.now() - startTime) / totalProcessed : 10000; // 10s default
-        const estimatedBatchTime = batch.length * avgTimePerPost;
-        
-        if (estimatedBatchTime > timeWithBuffer) {
-          console.log(`Job ${jobId}: Estimated batch time (${Math.round(estimatedBatchTime/1000)}s) exceeds remaining time, stopping`);
-          break;
-        }
-        
-        batchCount++;
-        
-        // Determine delay based on batch complexity
-        const avgComplexity = batch.reduce((sum, post) => {
-          const complexity = post.analysis?.complexity || 'medium';
-          return sum + (complexity === 'complex' ? 3 : complexity === 'medium' ? 2 : 1);
-        }, 0) / batch.length;
-        
-        const dynamicDelay = avgComplexity > 2.5 ? INTER_BATCH_DELAY * 2 : 
-                            avgComplexity > 1.5 ? INTER_BATCH_DELAY : 
-                            INTER_BATCH_DELAY / 2;
-        
-        console.log(`Job ${jobId}: Processing smart batch ${batchCount} (${batch.length} posts, avg complexity: ${avgComplexity.toFixed(1)})`);
-        
-        const batchResult = await processPostBatch(
-          batch, 
-          supabase, 
-          jobId, 
-          batchCount, 
-          totalBatches,
-          totalProcessed,
-          totalPosts
-        );
-        
-        totalProcessed += batch.length;
-        totalSuccess += batchResult.success;
-        totalFailed += batchResult.failed;
-        totalSkipped += batchResult.skipped;
-        
-        console.log(`Job ${jobId}: Smart batch ${batchCount} complete: ${batchResult.success} success, ${batchResult.failed} failed, ${batchResult.skipped} skipped`);
-        
-        // Update progress after each batch
-        await updateJobStatus(jobId, {
-          progress: {
-            current_step: `Completed smart batch ${batchCount}`,
-            total_steps: 4,
-            completed_steps: 2,
-            posts_processed: totalProcessed,
-            posts_total: totalPosts,
-            current_batch: batchCount,
-            total_batches: totalBatches,
-            posts_success: totalSuccess,
-            posts_failed: totalFailed
-          }
-        });
-        
-        // Dynamic delay based on batch complexity + memory cleanup
-        await new Promise(resolve => setTimeout(resolve, dynamicDelay));
-        
-        // Force garbage collection between batches if available
-        if (typeof globalThis.gc === 'function') {
-          try {
-            globalThis.gc();
-          } catch (gcError) {
-            // GC not available, that's fine
-          }
-        }
-      }
-      
-      // If we processed fewer posts than fetched, we're done
-      if (posts.length < fetchSize) {
-        console.log(`Job ${jobId}: Processed all available posts`);
+        posts = data || [];
+      } catch (fetchError) {
+        console.error("Exception fetching posts:", fetchError);
         break;
       }
+
+      if (posts.length === 0) {
+        console.log(`Job ${jobId}: No more posts to process`);
+        break;
+      }
+
+      batchCount++;
+      console.log(`Job ${jobId}: Processing batch ${batchCount} with ${posts.length} posts`);
+      
+      const batchResult = await processPostBatch(
+        posts, 
+        supabase, 
+        jobId, 
+        batchCount, 
+        Math.ceil(totalPostsCount / RAILWAY_BATCH_SIZE),
+        totalProcessed,
+        totalPostsCount
+      );
+      
+      totalProcessed += posts.length;
+      totalSuccess += batchResult.success;
+      totalFailed += batchResult.failed;
+      totalSkipped += batchResult.skipped;
+      
+      // Update progress
+      await updateJobStatus(jobId, {
+        progress: {
+          current_step: `Completed batch ${batchCount}`,
+          total_steps: 4,
+          completed_steps: 2,
+          posts_processed: totalProcessed,
+          posts_total: totalPostsCount,
+          current_batch: batchCount,
+          total_batches: Math.ceil(totalPostsCount / RAILWAY_BATCH_SIZE),
+          posts_success: totalSuccess,
+          posts_failed: totalFailed
+        }
+      });
+
+      // Short delay between batches
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     const endTime = Date.now();
     const duration = endTime - startTime;
 
-    // Check if there are still posts to process
-    const timeRanOut = Date.now() - startTime >= (MAX_PROCESSING_TIME - SAFETY_BUFFER_MS);
-    const hitPostLimit = totalProcessed >= MAX_POSTS_PER_RUN;
-    let hasMorePosts = false;
-    
-    if (timeRanOut || hitPostLimit) {
-      try {
-        // Use same fallback logic for checking remaining posts
-        let remainingCount = 0;
-        
-        const statusCheck = await supabase
-          .from("posts")
-          .select("*", { count: 'exact', head: true })
-          .or("enrich_status.is.null,enrich_status.eq.pending,enrich_status.eq.failed");
-        
-        if (statusCheck.error) {
-          console.warn(`Remaining posts status check failed: ${statusCheck.error.message}`);
-          
-          const fallbackCheck = await supabase
-            .from("posts")
-            .select("*", { count: 'exact', head: true })
-            .or("enriched_at.is.null,sentiment.is.null,embedding.is.null");
-          
-          if (fallbackCheck.error) {
-            console.warn(`Remaining posts fallback check failed: ${fallbackCheck.error.message}`);
-            remainingCount = 0; // Assume no remaining posts if we can't check
-          } else {
-            remainingCount = fallbackCheck.count || 0;
-          }
-        } else {
-          remainingCount = statusCheck.count || 0;
-        }
-        
-        hasMorePosts = remainingCount > 0;
-        if (timeRanOut) {
-          console.log(`Job ${jobId}: Time ran out. Remaining posts to process: ${remainingCount}`);
-        }
-        if (hitPostLimit) {
-          console.log(`Job ${jobId}: Hit post limit (${MAX_POSTS_PER_RUN}). Remaining posts to process: ${remainingCount}`);
-        }
-      } catch (error) {
-        console.warn(`Job ${jobId}: Could not check remaining posts:`, error);
-      }
-    }
-
-    // Check if all posts were already enriched by getting final stats
-    let enrichmentSummary: any = {};
-    try {
-      const { data: finalStats, error: finalStatsError } = await supabase
-        .from("posts")
-        .select("sentiment, keywords, enriched_at, enrich_status, embedding");
-      
-      if (!finalStatsError && finalStats) {
-        const totalInDb = finalStats.length;
-        const fullyEnriched = finalStats.filter(p => 
-          p.enriched_at && p.sentiment !== null && p.keywords !== null && p.embedding !== null
-        ).length;
-        const partiallyEnriched = finalStats.filter(p => 
-          p.enriched_at && (p.sentiment === null || p.keywords === null || p.embedding === null)
-        ).length;
-        const notEnriched = totalInDb - fullyEnriched - partiallyEnriched;
-        
-        enrichmentSummary = {
-          total_posts_in_database: totalInDb,
-          fully_enriched: fullyEnriched,
-          partially_enriched: partiallyEnriched,
-          not_enriched: notEnriched,
-          enrichment_completion_rate: totalInDb > 0 ? Math.round((fullyEnriched / totalInDb) * 100 * 10) / 10 : 0,
-          all_posts_enriched: fullyEnriched === totalInDb && totalInDb > 0,
-          no_work_needed: totalProcessed === 0 && totalPosts > 0
-        };
-      }
-    } catch (summaryError) {
-      console.warn("Could not generate enrichment summary:", summaryError);
-    }
-
     const result = {
       status: "success",
-      architecture: "smart_batched_enrichment_with_enhanced_reliability",
+      architecture: "railway_enrichment_orchestrator",
       duration_ms: duration,
       duration_minutes: Math.round(duration / 60000 * 10) / 10,
       stats: {
@@ -1796,55 +1269,16 @@ async function executeEnrichmentJob(jobId: string, parameters: any): Promise<voi
         successful: totalSuccess,
         failed: totalFailed,
         skipped: totalSkipped,
-        smart_batches: batchCount,
+        batches: batchCount,
         posts_per_minute: Math.round((totalProcessed / (duration / 60000)) * 10) / 10,
-        success_rate: totalProcessed > 0 ? Math.round((totalSuccess / totalProcessed) * 100 * 10) / 10 : 0,
-        efficiency_score: totalProcessed > 0 ? Math.round(((totalSuccess + totalSkipped) / totalProcessed) * 100) : 0,
-        partial_success_rate: totalProcessed > 0 ? Math.round(((totalSuccess + totalSkipped) / totalProcessed) * 100 * 10) / 10 : 0
+        success_rate: totalProcessed > 0 ? Math.round((totalSuccess / totalProcessed) * 100 * 10) / 10 : 0
       },
-      enrichment_summary: enrichmentSummary,
-      message: enrichmentSummary.all_posts_enriched 
-        ? `🎉 All ${enrichmentSummary.total_posts_in_database} posts are already fully enriched! No work needed.`
-        : enrichmentSummary.no_work_needed
-        ? `⚠️  Found ${totalPosts} posts but processed 0. Most likely all posts are already enriched.`
-        : totalSkipped > totalSuccess
-        ? `📊 Mostly maintenance run: ${totalSkipped} posts already enriched, ${totalSuccess} newly processed.`
-        : `✅ Successfully processed ${totalProcessed} posts.`,
-      reliability: {
-        openai_total_requests: reliabilityState.totalRequests,
-        openai_failed_requests: reliabilityState.failedRequests,
-        openai_failure_rate: reliabilityState.totalRequests > 0 ? 
-          Math.round((reliabilityState.failedRequests / reliabilityState.totalRequests) * 100 * 10) / 10 : 0,
-        rate_limit_hits: reliabilityState.rateLimitHits,
-        consecutive_failures: reliabilityState.consecutiveFailures,
-        circuit_breaker_triggered: reliabilityState.circuitBreakerOpen,
-        fallback_mode_used: reliabilityState.fallbackMode,
-        connection_pool_utilization: Math.round((dbPool as any).pool?.length || 0)
-      },
-      optimizations: {
-        smart_batching: true,
-        priority_queue: true,
-        parallel_processing: true,
-        intelligent_chunking: true,
-        dynamic_concurrency: true,
-        complexity_analysis: true,
-        resumable_processing: true,
-        enhanced_reliability: true,
-        database_connection_pooling: true,
-        partial_success_handling: true,
-        exponential_backoff: true,
-        circuit_breaker: true,
-        fallback_strategies: true
-      },
-      completed_all: !hasMorePosts,
-      time_limited: timeRanOut,
-      post_limited: hitPostLimit,
-      needs_continuation: hasMorePosts,
-      max_posts_per_run: MAX_POSTS_PER_RUN,
+      message: `✅ Railway enrichment completed: ${totalSuccess} posts enriched successfully`,
       function_info: {
         version: FUNCTION_VERSION,
         last_updated: LAST_UPDATED,
-        orchestrator: true
+        orchestrator: true,
+        enrichment_service: "Railway"
       }
     };
 
@@ -1856,7 +1290,7 @@ async function executeEnrichmentJob(jobId: string, parameters: any): Promise<voi
         total_steps: 4,
         completed_steps: 4,
         posts_processed: totalProcessed,
-        posts_total: totalPosts,
+        posts_total: totalPostsCount,
         current_batch: batchCount,
         total_batches: batchCount,
         posts_success: totalSuccess,
@@ -1865,47 +1299,10 @@ async function executeEnrichmentJob(jobId: string, parameters: any): Promise<voi
       result
     });
 
-    console.log(`Job ${jobId}: Enrichment completed successfully:`, result);
-    
-    // Additional summary logging for clarity
-    if (totalProcessed === 0 && totalPosts > 0) {
-      console.log(`📊 SUMMARY: Found ${totalPosts} posts in database but processed 0 posts.`);
-      console.log(`   This typically means all posts are already fully enriched.`);
-    } else if (totalSkipped > totalSuccess) {
-      console.log(`📊 SUMMARY: Skipped ${totalSkipped} already-enriched posts, processed ${totalSuccess} new posts.`);
-    } else if (totalProcessed > 0) {
-      console.log(`📊 SUMMARY: Successfully processed ${totalProcessed} posts (${totalSuccess} success, ${totalFailed} failed, ${totalSkipped} skipped).`);
-    }
-    
-    // Optional: Auto-trigger continuation job if needed and enabled
-    if (hasMorePosts && Deno.env.get("AUTO_CONTINUE_ENRICHMENT") === "true") {
-      console.log(`Job ${jobId}: Auto-continuing enrichment due to remaining posts`);
-      
-      // Trigger a new enrichment job asynchronously (fire and forget)
-      try {
-        const baseUrl = new URL(Deno.env.get("SUPABASE_URL") || "").origin;
-        
-        fetch(`${baseUrl}/functions/v1/enrich-orchestrator`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`
-          },
-          body: JSON.stringify({
-            auto_continuation: true,
-            previous_job: jobId
-          })
-        }).catch(error => {
-          console.warn(`Failed to auto-trigger continuation job:`, error);
-        });
-        
-      } catch (autoError) {
-        console.warn(`Auto-continuation setup failed:`, autoError);
-      }
-    }
+    console.log(`Job ${jobId}: Railway enrichment orchestration completed:`, result);
 
   } catch (error) {
-    console.error(`Job ${jobId}: Enrichment error:`, error);
+    console.error(`Job ${jobId}: Railway enrichment orchestration error:`, error);
     
     await updateJobStatus(jobId, {
       status: 'failed',
@@ -1979,10 +1376,10 @@ Deno.serve(async (req) => {
     
     // Parse parameters
     const jobParameters = {
-      batch_size: parseInt(url.searchParams.get("batch_size") || String(BATCH_SIZE)),
-      concurrent_requests: parseInt(url.searchParams.get("concurrent_requests") || String(CONCURRENT_REQUESTS)),
+      batch_size: parseInt(url.searchParams.get("batch_size") || "50"), // Use Railway batch size
+      concurrent_requests: parseInt(url.searchParams.get("concurrent_requests") || "20"), // Railway concurrency
       priority: url.searchParams.get("priority") || "recent_first",
-      platform: url.searchParams.get("platform") || "all" // New platform filter
+      platform: url.searchParams.get("platform") || "all"
     };
 
     const job: EnrichJob = {
@@ -1994,22 +1391,23 @@ Deno.serve(async (req) => {
     
     await createJob(job);
     
-    console.log(`Created enrichment job ${jobId} with parameters:`, jobParameters);
+    console.log(`Created Railway enrichment job ${jobId} with parameters:`, jobParameters);
 
     // Start enrichment in background
     executeEnrichmentJob(jobId, jobParameters).catch(error => {
-      console.error(`Background enrichment job ${jobId} failed:`, error);
+      console.error(`Background Railway enrichment job ${jobId} failed:`, error);
     });
 
     // Return immediately with job ID
     return new Response(JSON.stringify({
       status: "triggered",
-      message: "Enrichment job has been triggered successfully",
-      architecture: "orchestrated_enrichment",
+      message: "Railway enrichment job has been triggered successfully",
+      architecture: "railway_enrichment_orchestrator",
       job_id: jobId,
       created_at: nowISO,
       parameters: jobParameters,
       status_url: `${url.origin}/functions/v1/job-status?job_id=${jobId}`,
+      enrichment_service: "Railway",
       function_info: {
         version: FUNCTION_VERSION,
         last_updated: LAST_UPDATED,
@@ -2021,12 +1419,12 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error("Enrich orchestrator trigger error:", error);
+    console.error("Railway enrichment orchestrator trigger error:", error);
     
     return new Response(JSON.stringify({
       status: "error",
       error: String(error),
-      message: "Failed to trigger enrichment job",
+      message: "Failed to trigger Railway enrichment job",
       function_info: {
         version: FUNCTION_VERSION,
         last_updated: LAST_UPDATED,

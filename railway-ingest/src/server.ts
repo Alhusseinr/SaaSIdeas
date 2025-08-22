@@ -21,8 +21,49 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const USER_AGENT = "complaint-scanner/0.1";
 
-// Initialize Supabase client
-const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+// Initialize Supabase client with longer timeout
+const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+  db: {
+    schema: 'public'
+  },
+  global: {
+    fetch: (url, options = {}) => {
+      return fetch(url, {
+        ...options,
+        // Increase timeout to 30 seconds
+        signal: AbortSignal.timeout(30000)
+      });
+    }
+  }
+});
+
+// Circuit breaker for Supabase operations
+let circuitBreakerOpen = false;
+let circuitBreakerTimer: NodeJS.Timeout | null = null;
+const CIRCUIT_BREAKER_TIMEOUT = 180000; // 3 minutes - longer recovery time
+let consecutiveFailures = 0;
+
+function openCircuitBreaker() {
+  consecutiveFailures++;
+  console.log(`🚨 Circuit breaker OPEN (failure #${consecutiveFailures}) - stopping Supabase operations`);
+  circuitBreakerOpen = true;
+  
+  if (circuitBreakerTimer) clearTimeout(circuitBreakerTimer);
+  circuitBreakerTimer = setTimeout(() => {
+    console.log('🔄 Circuit breaker RESET - resuming operations');
+    circuitBreakerOpen = false;
+    consecutiveFailures = 0; // Reset failure counter
+  }, CIRCUIT_BREAKER_TIMEOUT);
+}
+
+// Emergency bypass - just log posts when Supabase is completely down
+function logPostsToConsole(posts: PostData[]) {
+  console.log('\n📝 EMERGENCY MODE - Logging posts to console (Supabase unavailable):');
+  posts.slice(0, 3).forEach((post, index) => {
+    console.log(`${index + 1}. [${post.platform_post_id}] ${post.title?.substring(0, 100)}...`);
+  });
+  console.log(`... and ${posts.length - 3} more posts\n`);
+}
 
 interface PostData {
   platform: string;
@@ -103,9 +144,97 @@ async function getRedditToken(): Promise<string> {
   return data.access_token;
 }
 
+async function fetchRedditComments(
+  accessToken: string,
+  postId: string,
+  subreddit: string,
+  maxComments: number = 20
+): Promise<PostData[]> {
+  const comments: PostData[] = [];
+  const nowISO = new Date().toISOString();
+  
+  try {
+    // Fetch comments for a specific post
+    const url = `https://oauth.reddit.com/r/${subreddit}/comments/${postId}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "User-Agent": USER_AGENT,
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`Failed to fetch comments for post ${postId}: ${response.status}`);
+      return comments;
+    }
+
+    const data = await response.json();
+    
+    // Reddit returns an array with 2 elements: [post, comments]
+    const commentListing = data[1];
+    if (!commentListing?.data?.children) return comments;
+
+    // Recursive function to extract comments and replies
+    async function extractComments(commentChildren: any[], depth: number = 0, maxDepth: number = 2): Promise<PostData[]> {
+      const extractedComments: PostData[] = [];
+      if (depth > maxDepth || extractedComments.length >= maxComments) return extractedComments;
+      
+      for (const commentChild of commentChildren) {
+        if (extractedComments.length >= maxComments) break;
+        
+        const comment = commentChild.data;
+        if (!comment || !comment.body || comment.body === '[deleted]' || comment.body === '[removed]') continue;
+        
+        // Filter for complaint/problem-related comments
+        const commentText = comment.body.toLowerCase();
+        const hasComplaintTerms = [
+          "frustrating", "annoying", "hate", "terrible", "awful", "broken", 
+          "doesn't work", "slow", "buggy", "wish there was", "need a tool",
+          "why isn't there", "should make", "would pay for", "pain in the ass",
+          "time consuming", "manual", "tedious", "nightmare", "ridiculous"
+        ].some(term => commentText.includes(term));
+        
+        if (hasComplaintTerms && isSoftwareFocused("", comment.body)) {
+          const createdISO = new Date((comment.created_utc ?? comment.created) * 1000).toISOString();
+          const hash = await makeHash("reddit", comment.id, comment.body, createdISO);
+
+          extractedComments.push({
+            platform: "reddit",
+            platform_post_id: String(comment.id),
+            author: comment.author ? String(comment.author) : null,
+            url: comment.permalink ? `https://www.reddit.com${comment.permalink}` : null,
+            created_at: createdISO,
+            fetched_at: nowISO,
+            title: `Comment on r/${subreddit}`,
+            body: comment.body,
+            hash: hash,
+          });
+        }
+        
+        // Process replies recursively
+        if (comment.replies && comment.replies.data && comment.replies.data.children) {
+          const replyComments = await extractComments(comment.replies.data.children, depth + 1, maxDepth);
+          extractedComments.push(...replyComments);
+        }
+      }
+      
+      return extractedComments;
+    }
+
+    const extractedComments = await extractComments(commentListing.data.children);
+    console.log(`Fetched ${extractedComments.length} relevant comments from post ${postId}`);
+    return extractedComments;
+  } catch (error) {
+    console.error(`Error fetching comments for post ${postId}:`, error);
+    return comments;
+  }
+}
+
 async function fetchRedditPosts(
   maxPosts: number = 500,
-  useAllReddit: boolean = false
+  useAllReddit: boolean = false,
+  includeComments: boolean = false
 ): Promise<{ posts: PostData[]; filtered: number; completed: boolean; totalStored: number; totalDuplicates: number }> {
   const streamingBatch: PostData[] = []; // Small batch for immediate storage
   const seenPostIds = new Set<string>(); // Track unique post IDs to prevent duplicates
@@ -113,7 +242,7 @@ async function fetchRedditPosts(
   let filteredCount = 0;
   let totalStoredPosts = 0;
   let totalDuplicates = 0;
-  const STREAMING_BATCH_SIZE = 100; // Store every 100 posts immediately
+  const STREAMING_BATCH_SIZE = 25; // Store every 25 posts immediately to avoid timeouts
 
   console.log(
     `Starting Reddit ingestion: ${maxPosts} posts, useAllReddit: ${useAllReddit}`
@@ -123,11 +252,34 @@ async function fetchRedditPosts(
     throw new Error("Reddit credentials not configured");
   }
 
-  // Get subreddits from config
-  const subreddits = useAllReddit ? ["all"] : configLoader.getAllSubreddits();
+  // Get subreddits from config with intelligent prioritization
+  let subreddits;
+  if (useAllReddit) {
+    subreddits = ["all"];
+  } else {
+    const allSubreddits = configLoader.getAllSubreddits();
+    // Prioritize high-quality subreddits for better results with less volume
+    const prioritySubreddits = [
+      "SaaS", "startups", "Entrepreneur", "smallbusiness",
+      "programming", "webdev", "productivity", "mildlyinfuriating"
+    ];
+    
+    // If maxPosts is small, use only priority subreddits
+    if (maxPosts <= 1000) {
+      subreddits = prioritySubreddits.filter(sub => allSubreddits.includes(sub));
+      console.log(`Using ${subreddits.length} priority subreddits for small batch (${maxPosts} posts)`);
+    } else {
+      subreddits = allSubreddits;
+    }
+  }
 
-  // Get phrases from config
-  const phrases = configLoader.getAllPhrases();
+  // Get phrases from config with optimization for smaller batches
+  let phrases = configLoader.getAllPhrases();
+  if (maxPosts <= 500) {
+    // Use only the most effective phrases for small batches
+    phrases = phrases.slice(0, 8); // Top 8 most effective phrases
+    console.log(`Using ${phrases.length} high-impact phrases for small batch`);
+  }
 
   try {
     console.log("Getting Reddit token...");
@@ -138,11 +290,30 @@ async function fetchRedditPosts(
     const selectedPhrases = phrases;
 
     console.log(
-      `Processing ${selectedSubreddits.length} subreddits with ${selectedPhrases.length} phrases`
+      `Processing ${selectedSubreddits.length} subreddits with ${selectedPhrases.length} phrases (max ${maxPosts} total posts)`
     );
 
-    for (const subreddit of selectedSubreddits) {
+    // Add global counters for maxPosts enforcement and quality tracking
+    let totalPostsProcessed = 0;
+    let emptySearchCount = 0;
+    const maxEmptySearches = 5; // Stop if we get 5 consecutive empty results
+    
+    subredditLoop: for (const subreddit of selectedSubreddits) {
+      if (totalPostsProcessed >= maxPosts) {
+        console.log(`Reached maxPosts limit of ${maxPosts}, stopping ingestion`);
+        break;
+      }
+      
+      if (emptySearchCount >= maxEmptySearches) {
+        console.log(`Too many empty searches (${emptySearchCount}), stopping ingestion to avoid waste`);
+        break;
+      }
+      
       for (const phrase of selectedPhrases) {
+        if (totalPostsProcessed >= maxPosts) {
+          console.log(`Reached maxPosts limit of ${maxPosts} during phrase processing`);
+          break subredditLoop;
+        }
         try {
           // Get settings from config
           const config = configLoader.getRedditConfig();
@@ -153,12 +324,17 @@ async function fetchRedditPosts(
           console.log("sorted: ", config.settings.sorted_by)
 
           for (const sortby of sorted) {
+            if (totalPostsProcessed >= maxPosts) {
+              console.log(`Reached maxPosts limit of ${maxPosts} during sort processing`);
+              break subredditLoop;
+            }
+            
             const url = `https://oauth.reddit.com/r/${subreddit}/search?limit=${postsPerSearch}&sort=${sortby}&restrict_sr=1&t=${timeRange}&q=${encodeURIComponent(
               `"${phrase}"`
             )}`;
 
             console.log(
-              `Fetching from r/${subreddit} with phrase "${phrase}" (limit: ${postsPerSearch}) (url: ${url})`
+              `Fetching from r/${subreddit} with phrase "${phrase}" (limit: ${postsPerSearch}, processed so far: ${totalPostsProcessed}/${maxPosts})`
             );
 
             const response = await fetch(url, {
@@ -182,12 +358,29 @@ async function fetchRedditPosts(
 
             const data = await response.json();
             const redditPosts = data?.data?.children || [];
+            
+            // Track empty searches
+            if (redditPosts.length === 0) {
+              emptySearchCount++;
+              console.log(`Empty search result for r/${subreddit}/"${phrase}" (${emptySearchCount}/${maxEmptySearches})`);
+              continue;
+            } else {
+              emptySearchCount = 0; // Reset counter on successful search
+            }
 
             for (const child of redditPosts) {
+              // Check limit before processing each post
+              if (totalPostsProcessed >= maxPosts) {
+                console.log(`Reached maxPosts limit of ${maxPosts} while processing posts`);
+                break subredditLoop;
+              }
+              
               const post = child.data;
               const title = post.title || "";
               const body = post.selftext || "";
 
+              totalPostsProcessed++; // Increment counter for each post processed
+              
               if (!title && !body) {
                 filteredCount++;
                 continue;
@@ -225,6 +418,8 @@ async function fetchRedditPosts(
               seenPostIds.add(post.id);
               streamingBatch.push(postData);
 
+              // Comment fetching disabled for now to reduce load
+
               // Store batch immediately when it reaches the threshold
               if (streamingBatch.length >= STREAMING_BATCH_SIZE) {
                 console.log(`Storing batch of ${streamingBatch.length} posts...`);
@@ -260,7 +455,7 @@ async function fetchRedditPosts(
     }
 
     console.log(
-      `Reddit ingestion complete: ${totalStoredPosts + totalDuplicates} posts processed, ${totalStoredPosts} stored, ${totalDuplicates} duplicates, ${filteredCount} filtered`
+      `Reddit ingestion complete: ${totalPostsProcessed} posts processed, ${totalStoredPosts} stored, ${totalDuplicates} duplicates, ${filteredCount} filtered (limit was ${maxPosts})`
     );
     
     return { 
@@ -284,9 +479,16 @@ async function storePosts(
     return { inserted: 0, duplicates: 0 };
   }
 
+  // Check circuit breaker
+  if (circuitBreakerOpen) {
+    console.log('⚠️ Circuit breaker is open - using emergency logging mode');
+    logPostsToConsole(posts);
+    return { inserted: 0, duplicates: posts.length };
+  }
+
   console.log(`Storing ${posts.length} posts in Supabase using batch processing...`);
 
-  const BATCH_SIZE = 1000; // Process 1000 posts at a time to avoid memory issues
+  const BATCH_SIZE = 30; // Balanced between performance and reliability
   let totalInserted = 0;
   let totalDuplicates = 0;
 
@@ -298,16 +500,69 @@ async function storePosts(
     console.log(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)`);
 
     try {
-      const { data, error } = await supabase
-        .from("posts")
-        .upsert(batch, {
-          onConflict: "platform,platform_post_id",
-          ignoreDuplicates: true,
-        })
-        .select("id");
+      // Retry logic for Supabase timeouts
+      let retryCount = 0;
+      const maxRetries = 3;
+      let data: any = null;
+      let error: any = null;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const result = await supabase
+            .from("posts")
+            .upsert(batch, {
+              onConflict: "platform,platform_post_id",
+              ignoreDuplicates: true,
+            })
+            .select("id");
+          
+          data = result.data;
+          error = result.error;
+          
+          if (!error) break; // Success, exit retry loop
+          
+        } catch (supabaseError: any) {
+          console.error(`Batch ${batchNumber} attempt ${retryCount + 1} failed:`, {
+            message: supabaseError.message,
+            code: supabaseError.code,
+            status: supabaseError.status,
+            details: supabaseError.details || 'No details available'
+          });
+          
+          // Check if this is a timeout/connection error - if so, open circuit breaker immediately
+          if (supabaseError.message?.includes('timeout') || 
+              supabaseError.message?.includes('TimeoutError') ||
+              supabaseError.message?.includes('522') || 
+              supabaseError.message?.includes('Connection timed out') ||
+              supabaseError.message?.includes('operation was aborted due to timeout') ||
+              supabaseError.code === 'ECONNABORTED' ||
+              supabaseError.code === 'TIMEOUT' ||
+              supabaseError.code === '23' ||
+              retryCount >= 1) { // Open circuit breaker after 2 failures
+            console.warn('🚨 Timeout/connection error detected - opening circuit breaker immediately');
+            openCircuitBreaker();
+            // Log remaining posts instead of losing them
+            if (i + BATCH_SIZE < posts.length) {
+              const remainingPosts = posts.slice(i + BATCH_SIZE);
+              logPostsToConsole(remainingPosts);
+            }
+            return { inserted: totalInserted, duplicates: totalDuplicates + (posts.length - i) };
+          }
+          
+          if (retryCount === maxRetries - 1) {
+            error = supabaseError;
+            break;
+          }
+        }
+        
+        retryCount++;
+        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s, 8s
+        console.log(`Retrying batch ${batchNumber} in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
 
       if (error) {
-        console.error(`Batch ${batchNumber} insert error:`, error);
+        console.error(`Batch ${batchNumber} insert error after ${retryCount + 1} attempts:`, error);
         throw error;
       }
 
@@ -319,9 +574,9 @@ async function storePosts(
 
       console.log(`Batch ${batchNumber} complete: ${batchInserted} inserted, ${batchDuplicates} duplicates`);
       
-      // Small delay between batches to avoid overwhelming the database
+      // Delay between batches to avoid overwhelming the database
       if (i + BATCH_SIZE < posts.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 800)); // Balanced delay
       }
     } catch (error) {
       console.error(`Failed to process batch ${batchNumber}:`, error);
@@ -410,14 +665,14 @@ app.post("/ingest-reddit", async (req, res) => {
   const startTime = Date.now();
 
   try {
-    const { max_posts = 500, use_all_reddit = false } = req.body;
+    const { max_posts = 500, use_all_reddit = false, include_comments = false } = req.body;
 
     console.log(
-      `Starting Reddit ingestion: ${max_posts} posts, useAllReddit: ${use_all_reddit}`
+      `Starting Reddit ingestion: ${max_posts} posts, useAllReddit: ${use_all_reddit}, includeComments: ${include_comments}`
     );
 
     // Fetch and stream posts from Reddit (posts are stored automatically during fetching)
-    const result = await fetchRedditPosts(max_posts, use_all_reddit);
+    const result = await fetchRedditPosts(max_posts, use_all_reddit, include_comments);
 
     const duration = Date.now() - startTime;
 

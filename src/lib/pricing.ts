@@ -160,7 +160,7 @@ export class PricingService {
       console.log(`   Current usage: ${validationUsage}/${subscription.validations_per_month}`)
 
       // Return true if under limit
-      const canValidate = validationUsage < subscription.validations_per_month
+      const canValidate = validationUsage < (subscription.validations_per_month || 0)
       console.log(`   Can validate: ${canValidate}`)
       
       return canValidate

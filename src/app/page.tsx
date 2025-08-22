@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Center, Loader, Box } from '@mantine/core'
 import { useAuth } from '@/hooks/useAuth'
 import { usePricingActions } from '@/contexts/PricingContext'
-import LoginForm from '@/components/LoginForm'
-import LandingPage from '@/components/LandingPage'
-import PaymentGate from '@/components/PaymentGate'
+import LoginForm from '@/components/LoginFormTailwind'
+import LandingPage from '@/components/LandingPageClean'
+import PaymentGate from '@/components/PaymentGateTailwind'
 
 function AppContent() {
   const { user, loading } = useAuth()
@@ -24,11 +23,9 @@ function AppContent() {
 
   if (!mounted || loading || pricingLoading) {
     return (
-      <Box style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-gray-0)' }}>
-        <Center h="100vh">
-          <Loader size="xl" color="blue" />
-        </Center>
-      </Box>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
     )
   }
 

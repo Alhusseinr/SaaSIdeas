@@ -5,6 +5,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const IDEAS_API_KEY = Deno.env.get("IDEAS_API_KEY");
 
+// Railway Ideas Service - eliminates all limits
+const RAILWAY_IDEAS_ENDPOINT = Deno.env.get("RAILWAY_IDEAS_ENDPOINT");
+
 // Function version
 const FUNCTION_VERSION = "2.0.0";
 const LAST_UPDATED = "2025-01-19T15:00:00Z";
@@ -79,34 +82,62 @@ async function createJob(jobId: string, parameters: any): Promise<void> {
   }
 }
 
-async function triggerMicroservices(jobId: string, parameters: any): Promise<void> {
-  const baseUrl = SUPABASE_URL!.replace('supabase.co', 'supabase.co/functions/v1');
-  
+async function triggerIdeasGeneration(jobId: string, parameters: any): Promise<void> {
   try {
-    console.log(`Triggering microservices for job ${jobId}`);
+    console.log(`Triggering ideas generation for job ${jobId}`);
     
-    // Step 1: Trigger post clustering
-    console.log("Step 1: Triggering post-clusterer...");
-    const clusterResponse = await fetch(`${baseUrl}/post-clusterer`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        job_id: jobId,
-        ...parameters
-      })
-    });
-    
-    if (!clusterResponse.ok) {
-      throw new Error(`Post clustering failed: ${clusterResponse.status}`);
+    // Check if Railway Ideas Service is available
+    if (RAILWAY_IDEAS_ENDPOINT) {
+      console.log("Using Railway Ideas Service (unlimited processing)...");
+      
+      const railwayResponse = await fetch(RAILWAY_IDEAS_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          job_id: jobId,
+          ...parameters
+        })
+      });
+      
+      if (!railwayResponse.ok) {
+        const errorText = await railwayResponse.text();
+        throw new Error(`Railway ideas service failed: ${railwayResponse.status} - ${errorText}`);
+      }
+      
+      const result = await railwayResponse.json();
+      console.log(`Railway ideas service completed: ${result.ideas_generated} ideas generated`);
+      
+    } else {
+      console.log("Using Supabase microservices (limited processing)...");
+      
+      const baseUrl = SUPABASE_URL!.replace('supabase.co', 'supabase.co/functions/v1');
+      
+      // Step 1: Trigger post clustering
+      console.log("Step 1: Triggering post-clusterer...");
+      const clusterResponse = await fetch(`${baseUrl}/post-clusterer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          job_id: jobId,
+          ...parameters
+        })
+      });
+      
+      if (!clusterResponse.ok) {
+        const errorText = await clusterResponse.text();
+        throw new Error(`Post clustering failed: ${clusterResponse.status} - ${errorText}`);
+      }
+      
+      console.log(`Supabase microservices triggered successfully for job ${jobId}`);
     }
     
-    console.log(`Microservices triggered successfully for job ${jobId}`);
-    
   } catch (error) {
-    console.error(`Failed to trigger microservices for job ${jobId}:`, error);
+    console.error(`Failed to trigger ideas generation for job ${jobId}:`, error);
     
     // Update job as failed
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -180,15 +211,15 @@ Deno.serve(async (req: Request) => {
     
     console.log(`Created job ${jobId} with parameters:`, parameters);
     
-    // Trigger microservices async (fire and forget)
-    triggerMicroservices(jobId, parameters).catch(error => 
-      console.error(`Microservices failed for job ${jobId}:`, error)
+    // Trigger ideas generation async (Railway or Supabase)
+    triggerIdeasGeneration(jobId, parameters).catch(error => 
+      console.error(`Ideas generation failed for job ${jobId}:`, error)
     );
     
     // Return immediately
     return new Response(JSON.stringify({
       status: "triggered",
-      message: "SaaS idea generation pipeline has been triggered",
+      message: RAILWAY_IDEAS_ENDPOINT ? "SaaS idea generation triggered via Railway (unlimited)" : "SaaS idea generation triggered via Supabase (limited)",
       job_id: jobId,
       created_at: new Date().toISOString(),
       parameters,

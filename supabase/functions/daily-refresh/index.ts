@@ -55,9 +55,12 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Step 1: Ingest fresh Reddit data
+    // Step 1: Ingest fresh Reddit data via orchestrator (uses Railway)
     console.log("Step 1: Ingesting Reddit data...");
-    const ingestResult = await callFunction('ingest-reddit');
+    const ingestResult = await callFunction('ingest-orchestrator', {
+      platforms: ['reddit'],
+      max_posts: 1000
+    });
     console.log(`Ingest complete: ${ingestResult.total_fetched} posts fetched, ${ingestResult.inserted} inserted`);
     
     // Wait for processing
@@ -75,9 +78,9 @@ Deno.serve(async (req) => {
       console.warn("Summarization step failed (may not be available):", error);
     }
     
-    // Step 3: Generate new SaaS ideas
+    // Step 3: Generate new SaaS ideas via orchestrator (uses Railway)
     console.log("Step 3: Generating SaaS ideas...");
-    const ideasResult = await callFunction('ideas-from-summaries', {
+    const ideasResult = await callFunction('ideas-orchestrator-v2', {
       days: 7,  // Look at last 7 days
       limit: 100  // Process up to 100 posts
     });

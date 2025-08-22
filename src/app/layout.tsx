@@ -1,15 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { ColorSchemeScript, MantineProvider } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
-import { ModalsProvider } from '@mantine/modals';
 import Providers from '@/components/Providers';
-import '@mantine/core/styles.css';
-import '@mantine/notifications/styles.css';
-import '@mantine/dates/styles.css';
-import '@mantine/charts/styles.css';
 import './globals.css';
-import { theme } from './theme';
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,18 +22,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-mantine-color-scheme="dark">
+    <html lang="en">
       <head>
       </head>
-      <body className={inter.className} style={{ backgroundColor: '#0D0D0D' }}>
-        <MantineProvider theme={theme} defaultColorScheme="dark" forceColorScheme="dark">
-          <ModalsProvider>
-            <Notifications />
-            <Providers>
-              {children}
-            </Providers>
-          </ModalsProvider>
-        </MantineProvider>
+      <body className={inter.className}>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );
