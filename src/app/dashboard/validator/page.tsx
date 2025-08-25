@@ -1,18 +1,17 @@
 'use client'
 
-import { Container, Stack, Title, Text } from '@mantine/core'
 import IdeaValidator from '@/components/IdeaValidator'
 
 export default function ValidatorPage() {
   return (
-    <Container size="xl" py="xl">
-      <Stack gap="md">
-        <Title order={2} c="#F5F5F5">Opportunity Validator</Title>
-        <Text c="#CCCCCC">
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">Opportunity Validator</h2>
+        <p className="text-lg text-gray-600">
           Validate your SaaS ideas using our AI-powered analysis engine.
-        </Text>
-        <IdeaValidator />
-      </Stack>
-    </Container>
+        </p>
+      </div>
+      <IdeaValidator />
+    </div>
   )
 }

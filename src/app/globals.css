@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Base styles */
+html,
+body {
+  background-color: white;
+  color: #374151;
+  margin: 0;
+  padding: 0;
+}
+
 /* Custom scrollbar */
 .scrollbar-hide {
   -ms-overflow-style: none;

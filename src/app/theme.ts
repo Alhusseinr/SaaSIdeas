@@ -2,7 +2,7 @@ import { createTheme } from '@mantine/core';
 
 export const theme = createTheme({
   /** Primary brand colors */
-  primaryColor: 'emerald',
+  primaryColor: 'blue',
   
   /** Font configuration */
   fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif',

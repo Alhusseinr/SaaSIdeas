@@ -2,24 +2,6 @@
 
 import { useState } from "react";
 import {
-  Container,
-  Card,
-  Title,
-  Text,
-  Button,
-  Stack,
-  Group,
-  Badge,
-  Grid,
-  ThemeIcon,
-  Alert,
-  Progress,
-  Loader,
-  Center,
-  Skeleton,
-  Divider,
-} from "@mantine/core";
-import {
   IconCreditCard,
   IconAlertTriangle,
   IconEye,
@@ -28,7 +10,6 @@ import {
   IconTrendingUp,
   IconFileText,
   IconClock,
-  IconCheck,
   IconExclamationCircle,
 } from "@tabler/icons-react";
 import { usePricingActions } from "@/contexts/PricingContext";
@@ -46,6 +27,19 @@ export default function SubscriptionPage() {
     getTrialDaysRemaining,
     isLoading,
   } = usePricingActions();
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return dateString;
+    }
+  };
 
   const [showUsageDetails, setShowUsageDetails] = useState(true);
   const [isManaging, setIsManaging] = useState(false);
@@ -85,24 +79,22 @@ export default function SubscriptionPage() {
 
   if (isLoading) {
     return (
-      <Container size="xl">
-        <Stack gap="xl">
+      <div className="max-w-7xl mx-auto">
+        <div className="space-y-6">
           {[1, 2].map((i) => (
-            <Card
+            <div
               key={i}
-              radius="xl"
-              withBorder
-              style={{ backgroundColor: "#1A1A1A", borderColor: "#404040" }}
+              className="bg-white border border-gray-200 rounded-xl shadow-sm p-6"
             >
-              <Stack gap="md">
-                <Skeleton height={20} width="25%" />
-                <Skeleton height={24} width="50%" />
-                <Skeleton height={16} width="75%" />
-              </Stack>
-            </Card>
+              <div className="space-y-4">
+                <div className="h-5 bg-gray-200 rounded animate-pulse w-1/4"></div>
+                <div className="h-6 bg-gray-200 rounded animate-pulse w-1/2"></div>
+                <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+              </div>
+            </div>
           ))}
-        </Stack>
-      </Container>
+        </div>
+      </div>
     );
   }
 
@@ -113,375 +105,277 @@ export default function SubscriptionPage() {
   const trialDaysRemaining = getTrialDaysRemaining();
 
   const getUsageBarColor = () => {
-    if (usagePercentage >= 90) return "#FF6B6B";
-    if (usagePercentage >= 75) return "#C5A46D";
-    return "#006B3C";
+    if (usagePercentage >= 90) return "#EF4444";
+    if (usagePercentage >= 75) return "#F59E0B";
+    return "#10B981";
   };
 
   const getStatusBadgeColor = () => {
-    if (isOnTrial()) return "#006B3C";
-    if (currentSubscription?.status === "active") return "#006B3C";
-    if (currentSubscription?.status === "past_due") return "#FF6B6B";
-    return "#666666";
+    if (isOnTrial()) return "#10B981";
+    if (currentSubscription?.status === "active") return "#10B981";
+    if (currentSubscription?.status === "past_due") return "#EF4444";
+    return "#6B7280";
   };
 
   return (
-    <Stack gap="xl">
-      {/* Current Subscription Status */}
-      <Card
-        radius="xl"
-        withBorder
-        style={{ backgroundColor: "#1A1A1A", borderColor: "#404040" }}
-      >
-        {/* Header */}
-        <Card.Section
-          withBorder
-          p="lg"
-          style={{
-            borderColor: "#404040",
-            background: "linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)",
-          }}
-        >
-          <Group justify="space-between">
-            <Group>
-              <ThemeIcon
-                size="lg"
-                radius="md"
-                style={{
-                  backgroundColor: "rgba(245, 245, 245, 0.2)",
-                  color: "#F5F5F5",
-                }}
-              >
-                <IconCreditCard size={20} />
-              </ThemeIcon>
-              <div>
-                <Title order={3} c="#F5F5F5">
-                  Current Subscription
-                </Title>
-                <Text c="rgba(245, 245, 245, 0.8)" size="sm">
-                  Your plan and usage overview
-                </Text>
+    <div className="max-w-7xl mx-auto px-4">
+      <div className="space-y-6">
+        {/* Current Subscription Status */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          {/* Header */}
+          <div
+            className="border-b border-gray-200 p-6"
+            style={{
+              background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+            }}
+          >
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-white/20 rounded-md flex items-center justify-center">
+                  <IconCreditCard size={20} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    Current Subscription
+                  </h3>
+                  <p className="text-white/80 text-sm">
+                    Your plan and usage overview
+                  </p>
+                </div>
               </div>
-            </Group>
-            <Button
-              onClick={() => setShowUsageDetails(!showUsageDetails)}
-              size="sm"
-              leftSection={
-                showUsageDetails ? (
+              <button
+                onClick={() => setShowUsageDetails(!showUsageDetails)}
+                className="px-4 py-2 bg-white/20 text-white border border-white/30 rounded-md hover:bg-white/30 transition-colors flex items-center gap-2 text-sm"
+              >
+                {showUsageDetails ? (
                   <IconEyeOff size={16} />
                 ) : (
                   <IconEye size={16} />
-                )
-              }
-              style={{
-                backgroundColor: "rgba(245, 245, 245, 0.2)",
-                color: "#F5F5F5",
-                border: "1px solid rgba(245, 245, 245, 0.3)",
-              }}
-            >
-              {showUsageDetails ? "Hide Details" : "View Details"}
-            </Button>
-          </Group>
-        </Card.Section>
+                )}
+                {showUsageDetails ? "Hide Details" : "View Details"}
+              </button>
+            </div>
+          </div>
 
-        {/* Content */}
-        <Card.Section p="xl">
-          {!hasActiveSubscription() ? (
-            <Card
-              radius="xl"
-              withBorder
-              style={{
-                backgroundColor: "#2A2A2A",
-                borderColor: "#C5A46D",
-                textAlign: "center",
-              }}
-            >
-              <Center p="xl">
-                <Stack align="center" gap="md">
-                  <ThemeIcon
-                    size={64}
-                    radius="xl"
-                    style={{ backgroundColor: "#C5A46D", color: "#0D0D0D" }}
-                  >
+          {/* Content */}
+          <div className="p-8">
+            {!hasActiveSubscription() ? (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl text-center p-8">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
                     <IconAlertTriangle size={32} />
-                  </ThemeIcon>
-                  <Title order={3} c="#F5F5F5">
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900">
                     No Active Subscription
-                  </Title>
-                  <Text c="#CCCCCC" mb="md">
+                  </h3>
+                  <p className="text-gray-600 mb-4">
                     Subscribe to start validating your SaaS ideas
-                  </Text>
-                  <Button
+                  </p>
+                  <button
                     onClick={handleUpgradePlan}
-                    size="lg"
+                    className="px-6 py-3 text-lg rounded-lg text-white border-none hover:opacity-90 transition-opacity"
                     style={{
                       background:
-                        "linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)",
-                      color: "#F5F5F5",
-                      border: "none",
+                        "linear-gradient(135deg, #10B981 0%, #059669 100%)",
                     }}
                   >
                     View Pricing Plans
-                  </Button>
-                </Stack>
-              </Center>
-            </Card>
-          ) : (
-            <>
-              {/* Plan Info */}
-              <Group justify="space-between" mb="xl">
-                <div>
-                  <Group gap="md" mb="xs">
-                    <Title order={2} c="#F5F5F5">
-                      {currentPlan?.display_name}
-                    </Title>
-                    <Badge
-                      style={{
-                        backgroundColor: getStatusBadgeColor(),
-                        color: "#F5F5F5",
-                      }}
-                    >
-                      {isOnTrial()
-                        ? `Trial (${trialDaysRemaining} days left)`
-                        : currentSubscription?.status}
-                    </Badge>
-                  </Group>
-                  <Text c="#CCCCCC" mb="xs">
-                    {currentPlan?.description}
-                  </Text>
-                  {currentSubscription && (
-                    <Text size="sm" c="#666666">
-                      {formatPrice(
-                        currentSubscription.billing_cycle === "yearly"
-                          ? currentPlan?.price_yearly || 0
-                          : currentPlan?.price_monthly || 0
-                      )}
-                      /{" "}
-                      {currentSubscription.billing_cycle === "yearly"
-                        ? "year"
-                        : "month"}
-                    </Text>
-                  )}
+                  </button>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <Text size="xl" fw={700} c="#F5F5F5">
-                    {isUnlimitedPlan(currentPlan?.validations_per_month || 0)
-                      ? "∞"
-                      : remainingValidations}
-                  </Text>
-                  <Text size="sm" c="#666666">
-                    {isUnlimitedPlan(currentPlan?.validations_per_month || 0)
-                      ? "Unlimited"
-                      : "remaining"}
-                  </Text>
+              </div>
+            ) : (
+              <>
+                {/* Plan Info */}
+                <div className="flex justify-between items-start mb-8">
+                  <div>
+                    <div className="flex items-center gap-4 mb-2">
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        {currentPlan?.display_name}
+                      </h2>
+                      <span
+                        className="px-3 py-1 rounded-full text-sm font-medium text-white"
+                        style={{
+                          backgroundColor: getStatusBadgeColor(),
+                        }}
+                      >
+                        {isOnTrial()
+                          ? `Trial (${trialDaysRemaining} days left)`
+                          : currentSubscription?.status}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 mb-2">
+                      {currentPlan?.description}
+                    </p>
+                    {currentSubscription && (
+                      <p className="text-sm text-gray-500">
+                        {formatPrice(
+                          currentSubscription.billing_cycle === "yearly"
+                            ? currentPlan?.price_yearly || 0
+                            : currentPlan?.price_monthly || 0
+                        )}
+                        /{" "}
+                        {currentSubscription.billing_cycle === "yearly"
+                          ? "year"
+                          : "month"}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-3xl font-bold text-gray-900">
+                      {isUnlimitedPlan(currentPlan?.validations_per_month || 0)
+                        ? "∞"
+                        : remainingValidations}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {isUnlimitedPlan(currentPlan?.validations_per_month || 0)
+                        ? "Unlimited"
+                        : "remaining"}
+                    </p>
+                  </div>
                 </div>
-              </Group>
 
-              {/* Usage Progress */}
-              {!isUnlimitedPlan(currentPlan?.validations_per_month || 0) && (
-                <Stack gap="md" mb="xl">
-                  <Group justify="space-between">
-                    <Text size="sm" fw={500} c="#F5F5F5">
-                      Idea Validations This Month
-                    </Text>
-                    <Text size="sm" c="#CCCCCC">
-                      {usedValidations} / {currentPlan?.validations_per_month}
-                    </Text>
-                  </Group>
-                  <Progress
-                    value={Math.min(100, usagePercentage)}
-                    size="lg"
-                    radius="md"
+                {/* Usage Progress */}
+                {!isUnlimitedPlan(currentPlan?.validations_per_month || 0) && (
+                  <div className="space-y-4 mb-8">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-medium text-gray-900">
+                        Idea Validations This Month
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {usedValidations} / {currentPlan?.validations_per_month}
+                      </p>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-md h-3">
+                      <div
+                        className="h-3 rounded-md transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, usagePercentage)}%`,
+                          backgroundColor: getUsageBarColor(),
+                        }}
+                      />
+                    </div>
+                    {usagePercentage >= 80 && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-md p-4 flex items-start gap-3">
+                        <IconExclamationCircle size={16} className="text-orange-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-orange-700">
+                          You're approaching your monthly limit. Consider
+                          upgrading your plan.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Trial Warning */}
+                {isOnTrial() && trialDaysRemaining <= 3 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-8">
+                    <div className="flex items-start gap-3">
+                      <IconClock size={16} className="text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-gray-900 font-medium mb-1">
+                          Your trial expires in {trialDaysRemaining} day{trialDaysRemaining !== 1 ? "s" : ""}
+                        </h4>
+                        <p className="text-sm text-yellow-700">
+                          Choose a plan below to continue using IdeaValidator without
+                          interruption.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 mb-8 flex-wrap">
+                  <button
+                    onClick={handleManageSubscription}
+                    disabled={isManaging}
+                    className="px-4 py-2 rounded-md text-white border-none flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
                     style={{
-                      "& .mantine-Progress-bar": {
-                        backgroundColor: getUsageBarColor(),
-                      },
-                    }}
-                  />
-                  {usagePercentage >= 80 && (
-                    <Alert
-                      icon={<IconExclamationCircle size={16} />}
-                      color="yellow"
-                      radius="md"
-                      style={{
-                        backgroundColor: "#2A2A2A",
-                        borderColor: "#C5A46D",
-                        color: "#F5F5F5",
-                      }}
-                    >
-                      <Text c="#C5A46D" size="sm">
-                        You're approaching your monthly limit. Consider
-                        upgrading your plan.
-                      </Text>
-                    </Alert>
-                  )}
-                </Stack>
-              )}
-
-              {/* Trial Warning */}
-              {isOnTrial() && trialDaysRemaining <= 3 && (
-                <Alert
-                  icon={<IconClock size={16} />}
-                  title={`Your trial expires in ${trialDaysRemaining} day${
-                    trialDaysRemaining !== 1 ? "s" : ""
-                  }`}
-                  color="yellow"
-                  radius="md"
-                  mb="xl"
-                  style={{
-                    backgroundColor: "#2A2A2A",
-                    borderColor: "#C5A46D",
-                    color: "#F5F5F5",
-                  }}
-                >
-                  <Text c="#C5A46D" size="sm">
-                    Choose a plan below to continue using IdeaValidator without
-                    interruption.
-                  </Text>
-                </Alert>
-              )}
-
-              {/* Action Buttons */}
-              <Group gap="md" mb="xl">
-                <Button
-                  onClick={handleManageSubscription}
-                  disabled={isManaging}
-                  leftSection={
-                    isManaging ? (
-                      <Loader size="xs" color="#F5F5F5" />
-                    ) : (
-                      <IconSettings size={16} />
-                    )
-                  }
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)",
-                    color: "#F5F5F5",
-                    border: "none",
-                  }}
-                >
-                  {isManaging ? "Opening..." : "Manage Subscription"}
-                </Button>
-                {currentPlan?.name !== "enterprise" && (
-                  <Button
-                    onClick={handleUpgradePlan}
-                    leftSection={<IconTrendingUp size={16} />}
-                    style={{
-                      backgroundColor: "#2A2A2A",
-                      color: "#C5A46D",
-                      borderColor: "#C5A46D",
+                      background:
+                        "linear-gradient(135deg, #10B981 0%, #059669 100%)",
                     }}
                   >
-                    Upgrade Plan
-                  </Button>
-                )}
-                <Button
-                  leftSection={<IconFileText size={16} />}
-                  style={{
-                    backgroundColor: "#2A2A2A",
-                    color: "#E5E5E5",
-                    borderColor: "#404040",
-                  }}
-                >
-                  Download Invoice
-                </Button>
-              </Group>
-
-              {/* Detailed Usage (Expandable) */}
-              {showUsageDetails && (
-                <>
-                  <Divider mb="xl" style={{ borderColor: "#404040" }} />
-                  <Stack gap="md">
-                    <Title order={4} c="#F5F5F5">
-                      Usage Details
-                    </Title>
-                    <Grid>
-                      <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
-                        <Card
-                          withBorder
-                          radius="md"
-                          p="md"
-                          style={{
-                            backgroundColor: "#2A2A2A",
-                            borderColor: "#404040",
-                          }}
-                        >
-                          <Group justify="space-between">
-                            <Text size="sm" c="#CCCCCC">
-                              API Calls
-                            </Text>
-                            <Text size="lg" fw={700} c="#F5F5F5">
-                              {getUsageForType("api_call") || 0}
-                            </Text>
-                          </Group>
-                        </Card>
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
-                        <Card
-                          withBorder
-                          radius="md"
-                          p="md"
-                          style={{
-                            backgroundColor: "#2A2A2A",
-                            borderColor: "#404040",
-                          }}
-                        >
-                          <Group justify="space-between">
-                            <Text size="sm" c="#CCCCCC">
-                              Exports
-                            </Text>
-                            <Text size="lg" fw={700} c="#F5F5F5">
-                              {getUsageForType("export") || 0}
-                            </Text>
-                          </Group>
-                        </Card>
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
-                        <Card
-                          withBorder
-                          radius="md"
-                          p="md"
-                          style={{
-                            backgroundColor: "#2A2A2A",
-                            borderColor: "#404040",
-                          }}
-                        >
-                          <Group justify="space-between">
-                            <Text size="sm" c="#CCCCCC">
-                              Team Members
-                            </Text>
-                            <Text size="lg" fw={700} c="#F5F5F5">
-                              {getUsageForType("team_member") || 0}
-                            </Text>
-                          </Group>
-                        </Card>
-                      </Grid.Col>
-                    </Grid>
-
-                    {currentSubscription && (
-                      <Stack gap="xs" mt="md">
-                        <Text size="xs" c="#666666">
-                          Billing cycle:{" "}
-                          {currentSubscription.current_period_start} to{" "}
-                          {currentSubscription.current_period_end}
-                        </Text>
-                        {currentSubscription.cancel_at_period_end && (
-                          <Group gap="xs">
-                            <IconExclamationCircle size={14} color="#FF6B6B" />
-                            <Text size="xs" c="#FF6B6B">
-                              Subscription will cancel at the end of this period
-                            </Text>
-                          </Group>
-                        )}
-                      </Stack>
+                    {isManaging ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <IconSettings size={16} />
                     )}
-                  </Stack>
-                </>
-              )}
-            </>
-          )}
-        </Card.Section>
-      </Card>
-    </Stack>
+                    {isManaging ? "Opening..." : "Manage Subscription"}
+                  </button>
+                  {currentPlan?.name !== "enterprise" && (
+                    <button
+                      onClick={handleUpgradePlan}
+                      className="px-4 py-2 bg-white text-blue-600 border border-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-2"
+                    >
+                      <IconTrendingUp size={16} />
+                      Upgrade Plan
+                    </button>
+                  )}
+                  <button className="px-4 py-2 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2">
+                    <IconFileText size={16} />
+                    Download Invoice
+                  </button>
+                </div>
+
+                {/* Detailed Usage (Expandable) */}
+                {showUsageDetails && (
+                  <>
+                    <div className="border-t border-gray-200 mb-8 pt-8">
+                      <h4 className="text-lg font-medium text-gray-900 mb-4">
+                        Usage Details
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                          <div className="flex justify-between items-center">
+                            <p className="text-sm text-gray-600">API Calls</p>
+                            <p className="text-lg font-bold text-gray-900">
+                              {getUsageForType("api_call") || 0}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                          <div className="flex justify-between items-center">
+                            <p className="text-sm text-gray-600">Exports</p>
+                            <p className="text-lg font-bold text-gray-900">
+                              {getUsageForType("export") || 0}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                          <div className="flex justify-between items-center">
+                            <p className="text-sm text-gray-600">Team Members</p>
+                            <p className="text-lg font-bold text-gray-900">
+                              {getUsageForType("team_member") || 0}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {currentSubscription && (
+                        <div className="space-y-1 mt-4">
+                          <p className="text-xs text-gray-500">
+                            Billing cycle:{" "}
+                            {formatDate(currentSubscription.current_period_start)} to{" "}
+                            {formatDate(currentSubscription.current_period_end)}
+                          </p>
+                          {currentSubscription.cancel_at_period_end && (
+                            <div className="flex items-center gap-2">
+                              <IconExclamationCircle size={14} className="text-red-500" />
+                              <p className="text-xs text-red-500">
+                                Subscription will cancel at the end of this period
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

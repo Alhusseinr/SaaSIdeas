@@ -1,26 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import {
-  Table,
-  Text,
-  Badge,
-  Group,
-  ActionIcon,
-  Card,
-  Stack,
-  Title,
-  Button,
-  Modal,
-  ScrollArea,
-  List,
-  Divider,
-  ThemeIcon,
-  Grid,
-  Tooltip,
-  TextInput,
-  Select,
-} from "@mantine/core";
+import { useState, useMemo } from "react";
 import {
   IconChevronUp,
   IconChevronDown,
@@ -30,11 +10,13 @@ import {
   IconClock,
   IconTrendingUp,
   IconCode,
+  IconX,
+  IconChartBar,
+  IconBulb,
+  IconUsers,
+  IconCurrencyDollar,
 } from "@tabler/icons-react";
 import { SaasIdeaItem } from "@/lib/supabase";
-import { generateEnhancedAnalysis } from "@/lib/enhancedAnalysis";
-import EnhancedAnalysis from "./EnhancedAnalysis";
-import ScoreBreakdown from "./ScoreBreakdown";
 
 interface DataTableProps {
   items: SaasIdeaItem[];
@@ -49,570 +31,461 @@ export default function DataTable({
 }: DataTableProps) {
   const [sortField, setSortField] = useState<keyof SaasIdeaItem>("score");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [localSelectedItem, setLocalSelectedItem] =
-    useState<SaasIdeaItem | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
-  const [enhancedItem, setEnhancedItem] = useState<SaasIdeaItem | null>(null);
-  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
-  const [pageSize, setPageSize] = useState("20");
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [selectedItemModal, setSelectedItemModal] = useState<SaasIdeaItem | null>(null);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
-  const currentItem = selectedItem || localSelectedItem;
-
-  // Generate enhanced analysis when an item is selected
-  useEffect(() => {
-    if (currentItem && !currentItem.competitive_landscape) {
-      const enhanced = generateEnhancedAnalysis(currentItem);
-      setEnhancedItem({ ...currentItem, ...enhanced });
-    } else {
-      setEnhancedItem(currentItem);
-    }
-  }, [currentItem]);
-
-  const handleItemSelect = (item: SaasIdeaItem) => {
-    if (onItemSelect) {
-      onItemSelect(item);
-    } else {
-      setLocalSelectedItem(item);
-    }
-    setShowDetails(true);
-  };
-
-  const handleSort = (field: keyof SaasIdeaItem) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("desc");
-    }
-  };
-
-  const getScoreBadgeColor = (score: number) => {
-    if (score >= 80) return "green";
-    if (score >= 60) return "yellow";
-    if (score >= 40) return "orange";
-    return "red";
-  };
-
-  const getDifficultyBadgeColor = (months: number | null) => {
-    if (!months) return "gray";
-    if (months <= 3) return "green";
-    if (months <= 6) return "yellow";
-    if (months <= 12) return "orange";
-    return "red";
-  };
-
-  const getDifficultyLabel = (months: number | null) => {
-    if (!months) return "Unknown";
-    if (months <= 3) return "Quick Build";
-    if (months <= 6) return "Moderate";
-    if (months <= 12) return "Complex";
-    return "Enterprise";
-  };
-
-  const getComplexityLabel = (months: number) => {
-    if (months <= 3) return "Simple";
-    if (months <= 6) return "Moderate";
-    if (months <= 12) return "Complex";
-    return "Enterprise";
-  };
-
-  const getComplexityColor = (months: number) => {
-    if (months <= 3) return "green";
-    if (months <= 6) return "yellow";
-    if (months <= 12) return "orange";
-    return "red";
-  };
-
-  const getTechFeasibilityColor = (score: number) => {
-    if (score >= 80) return "green";
-    if (score >= 60) return "yellow";
-    if (score >= 40) return "orange";
-    return "red";
-  };
-
-  const formatMarketSize = (size: number | null) => {
-    if (!size) return "Unknown";
-    if (size >= 1000000000) return `$${(size / 1000000000).toFixed(1)}B`;
-    if (size >= 1000000) return `$${(size / 1000000).toFixed(1)}M`;
-    if (size >= 1000) return `$${(size / 1000).toFixed(1)}K`;
-    return `$${size}`;
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Unknown";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const filteredAndSortedItems = useMemo(() => {
-    let filtered = items;
-
-    filtered.sort((a, b) => {
-      let aValue = a[sortField];
-      let bValue = b[sortField];
-
-      // Handle null/undefined values
-      if (aValue == null && bValue == null) return 0;
-      if (aValue == null) return sortDirection === "asc" ? -1 : 1;
-      if (bValue == null) return sortDirection === "asc" ? 1 : -1;
-
-      // Handle string comparison
-      if (typeof aValue === "string" && typeof bValue === "string") {
-        aValue = aValue.toLowerCase();
-        bValue = bValue.toLowerCase();
+  const sortedItems = useMemo(() => {
+    const sorted = [...items].sort((a, b) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+      
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+      
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
       }
-
-      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
-      return 0;
+      
+      return sortDirection === 'asc' 
+        ? (aValue as number) - (bValue as number)
+        : (bValue as number) - (aValue as number);
     });
-
-    return filtered;
+    return sorted;
   }, [items, sortField, sortDirection]);
 
   const paginatedItems = useMemo(() => {
-    const size = parseInt(pageSize);
-    const start = (currentPage - 1) * size;
-    return filteredAndSortedItems.slice(start, start + size);
-  }, [filteredAndSortedItems, currentPage, pageSize]);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedItems.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedItems, currentPage, itemsPerPage]);
 
-  const totalPages = Math.ceil(
-    filteredAndSortedItems.length / parseInt(pageSize)
-  );
+  const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
 
-  const renderSortableHeader = (field: keyof SaasIdeaItem, label: string) => (
-    <Table.Th>
-      <Group
-        gap="xs"
-        style={{ cursor: "pointer" }}
-        onClick={() => handleSort(field)}
-      >
-        <Text fw={600} size="sm" c="#F5F5F5">
-          {label}
-        </Text>
-        {sortField === field && (
-          <ActionIcon variant="transparent" size="xs">
-            {sortDirection === "asc" ? (
-              <IconChevronUp size={12} />
-            ) : (
-              <IconChevronDown size={12} />
-            )}
-          </ActionIcon>
-        )}
-      </Group>
-    </Table.Th>
-  );
+  const handleSort = (field: keyof SaasIdeaItem) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
 
-  const renderDetailModal = () => (
-    <Modal
-      opened={showDetails}
-      onClose={() => setShowDetails(false)}
-      title={
-        <Group>
-          <ThemeIcon
-            size="lg"
-            radius="md"
-            style={{ backgroundColor: "#006B3C", color: "#F5F5F5" }}
-          >
-            <IconTarget size={20} />
-          </ThemeIcon>
-          <div>
-            <Title order={4} c="#F5F5F5">
-              Market Opportunity Analysis
-            </Title>
-            <Text size="sm" c="#CCCCCC">
-              Comprehensive Intelligence Report
-            </Text>
-          </div>
-        </Group>
-      }
-      size="xl"
-      radius="lg"
-      styles={{
-        content: { backgroundColor: "#1A1A1A" },
-        header: {
-          backgroundColor: "#1A1A1A",
-          borderBottom: "1px solid #404040",
-        },
-        body: { backgroundColor: "#1A1A1A" },
-        title: { color: "#F5F5F5" },
-      }}
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'bg-green-100 text-green-800';
+    if (score >= 60) return 'bg-yellow-100 text-yellow-800';
+    if (score >= 40) return 'bg-orange-100 text-orange-800';
+    return 'bg-red-100 text-red-800';
+  };
+
+  const getDifficultyColor = (months: number) => {
+    if (months <= 3) return 'bg-green-100 text-green-800';
+    if (months <= 6) return 'bg-yellow-100 text-yellow-800';
+    if (months <= 12) return 'bg-orange-100 text-orange-800';
+    return 'bg-red-100 text-red-800';
+  };
+
+  const SortableHeader = ({ field, children }: { field: keyof SaasIdeaItem; children: React.ReactNode }) => (
+    <th 
+      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-50 transition-colors"
+      onClick={() => handleSort(field)}
     >
-      {enhancedItem && (
-        <Stack gap="lg">
-          <Grid>
-            <Grid.Col span={8}>
-              <Stack gap="sm">
-                <Title order={3} c="#F5F5F5">
-                  {enhancedItem.name}
-                </Title>
-                <Text size="lg" c="#CCCCCC">
-                  {enhancedItem.one_liner}
-                </Text>
-
-                <Group>
-                  <Badge
-                    size="lg"
-                    style={{
-                      backgroundColor:
-                        getScoreBadgeColor(enhancedItem.score) === "green"
-                          ? "#006B3C"
-                          : getScoreBadgeColor(enhancedItem.score) === "yellow"
-                          ? "#C5A46D"
-                          : getScoreBadgeColor(enhancedItem.score) === "orange"
-                          ? "#FF8C00"
-                          : "#FF6B6B",
-                      color: "#F5F5F5",
-                    }}
-                    leftSection={<IconTrendingUp size={14} />}
-                  >
-                    Validation Score: {enhancedItem.score}
-                  </Badge>
-
-                  <Badge
-                    size="lg"
-                    style={{
-                      backgroundColor:
-                        getDifficultyBadgeColor(
-                          enhancedItem.development_timeline_months
-                        ) === "green"
-                          ? "#006B3C"
-                          : getDifficultyBadgeColor(
-                              enhancedItem.development_timeline_months
-                            ) === "yellow"
-                          ? "#C5A46D"
-                          : getDifficultyBadgeColor(
-                              enhancedItem.development_timeline_months
-                            ) === "orange"
-                          ? "#FF8C00"
-                          : getDifficultyBadgeColor(
-                              enhancedItem.development_timeline_months
-                            ) === "red"
-                          ? "#FF6B6B"
-                          : "#666666",
-                      color: "#F5F5F5",
-                    }}
-                    leftSection={<IconClock size={14} />}
-                  >
-                    {getDifficultyLabel(
-                      enhancedItem.development_timeline_months
-                    )}
-                  </Badge>
-                </Group>
-              </Stack>
-            </Grid.Col>
-
-            <Grid.Col span={4}>
-              <Stack gap="xs">
-                <Button
-                  fullWidth
-                  leftSection={<IconEye size={16} />}
-                  onClick={() => setShowScoreBreakdown(true)}
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)",
-                    color: "#F5F5F5",
-                    border: "none",
-                  }}
-                >
-                  View Score Analysis
-                </Button>
-
-                {enhancedItem.representative_post_ids &&
-                  enhancedItem.representative_post_ids.length > 0 && (
-                    <Button
-                      fullWidth
-                      leftSection={<IconExternalLink size={16} />}
-                      style={{
-                        backgroundColor: "#2A2A2A",
-                        color: "#E5E5E5",
-                        borderColor: "#404040",
-                      }}
-                    >
-                      View Source Posts (
-                      {enhancedItem.representative_post_ids.length})
-                    </Button>
-                  )}
-              </Stack>
-            </Grid.Col>
-          </Grid>
-
-          <Divider style={{ borderColor: "#404040" }} />
-
-          {enhancedItem.core_features &&
-            enhancedItem.core_features.length > 0 && (
-              <div>
-                <Title order={5} mb="sm" c="#F5F5F5">
-                  Core Features & Capabilities
-                </Title>
-                <List
-                  spacing="sm"
-                  icon={<IconCode size={16} color="#006B3C" />}
-                >
-                  {enhancedItem.core_features.map((feature, index) => (
-                    <List.Item key={index}>
-                      <Text size="sm" c="#E5E5E5">
-                        {feature}
-                      </Text>
-                    </List.Item>
-                  ))}
-                </List>
-              </div>
-            )}
-
-          {enhancedItem.why_now && (
-            <div>
-              <Title order={5} mb="sm" c="#F5F5F5">
-                Market Timing Analysis
-              </Title>
-              <Text size="sm" c="#CCCCCC">
-                {enhancedItem.why_now}
-              </Text>
-            </div>
-          )}
-
-          {enhancedItem.pricing_hint && (
-            <div>
-              <Title order={5} mb="sm" c="#F5F5F5">
-                Revenue Model Recommendations
-              </Title>
-              <Text size="sm" c="#CCCCCC">
-                {enhancedItem.pricing_hint}
-              </Text>
-            </div>
-          )}
-
-          {enhancedItem && (
-            <EnhancedAnalysis
-              idea={enhancedItem}
-              expandedSections={{}}
-              toggleSection={() => {}}
-            />
-          )}
-        </Stack>
-      )}
-    </Modal>
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field && (
+          sortDirection === 'asc' ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />
+        )}
+      </div>
+    </th>
   );
 
   return (
-    <Card
-      radius="lg"
-      withBorder
-      style={{ backgroundColor: "#1A1A1A", borderColor: "#404040" }}
-    >
-      <Stack gap="md">
-        {/* Header Controls */}
-        <Group justify="space-between">
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
           <div>
-            <Title order={3} c="#F5F5F5">
-              Market Intelligence Database
-            </Title>
-            <Text size="sm" c="#CCCCCC">
-              {filteredAndSortedItems.length} validated opportunities found
-            </Text>
+            <h3 className="text-lg font-semibold text-gray-900">Market Intelligence Database</h3>
+            <p className="text-sm text-gray-500">
+              {sortedItems.length} opportunities • Page {currentPage} of {totalPages}
+            </p>
           </div>
-
-          <Group>
-            <Select
-              value={pageSize}
-              onChange={(value) => {
-                setPageSize(value || "20");
+          
+          {/* Items per page selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700">Show:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              data={[
-                { value: "10", label: "10 per page" },
-                { value: "20", label: "20 per page" },
-                { value: "50", label: "50 per page" },
-                { value: "100", label: "100 per page" },
-              ]}
-              w={140}
-              styles={{
-                input: {
-                  backgroundColor: "#2A2A2A",
-                  borderColor: "#404040",
-                  color: "#F5F5F5",
-                },
-                dropdown: {
-                  backgroundColor: "#2A2A2A",
-                  borderColor: "#404040",
-                },
-                option: { color: "#F5F5F5" },
-              }}
-            />
-          </Group>
-        </Group>
+              className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
-        {/* Data Table */}
-        <ScrollArea>
-          <Table
-            striped
-            highlightOnHover
-            styles={{
-              table: { backgroundColor: "#1A1A1A" },
-              thead: { backgroundColor: "#2A2A2A" },
-              th: {
-                color: "#F5F5F5",
-                borderColor: "#404040",
-                padding: "12px 8px",
-                fontSize: "14px",
-                fontWeight: 600,
-              },
-              td: {
-                color: "#E5E5E5",
-                borderColor: "#404040",
-                padding: "16px 8px",
-                verticalAlign: "top",
-              },
-            }}
-          >
-            <Table.Thead>
-              <Table.Tr>
-                {renderSortableHeader("name", "Opportunity")}
-                {renderSortableHeader("score", "Validation Score")}
-                {renderSortableHeader("representative_post_ids", "Number of Posts")}
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-
-            <Table.Tbody>
-              {paginatedItems.map((item) => (
-                <Table.Tr key={item.id} style={{ cursor: "pointer" }}>
-                  <Table.Td onClick={() => handleItemSelect(item)}>
-                    <div style={{ maxWidth: "300px" }}>
-                      <Text fw={600} size="md" lineClamp={1} c="#F5F5F5" mb={4}>
-                        {item.name}
-                      </Text>
-                    </div>
-                    <div style={{ maxWidth: "300px" }}>
-                      <Text size="xs" c="#CCCCCC" lineClamp={2}>
-                        {item.one_liner}
-                      </Text>
-                    </div>
-                  </Table.Td>
-
-                  <Table.Td onClick={() => handleItemSelect(item)}>
-                    <Badge
-                      size="lg"
-                      radius="md"
-                      style={{
-                        backgroundColor:
-                          getScoreBadgeColor(item.score) === "green"
-                            ? "#006B3C"
-                            : getScoreBadgeColor(item.score) === "yellow"
-                            ? "#C5A46D"
-                            : getScoreBadgeColor(item.score) === "orange"
-                            ? "#FF8C00"
-                            : "#FF6B6B",
-                        color: "#F5F5F5",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                      }}
-                    >
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <SortableHeader field="score">Score</SortableHeader>
+              <SortableHeader field="name">Opportunity</SortableHeader>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Market Evidence
+              </th>
+              <SortableHeader field="development_timeline_months">Build Time</SortableHeader>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {paginatedItems.map((item) => (
+              <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                {/* Score */}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreColor(item.score)}`}>
                       {item.score}
-                    </Badge>
-                  </Table.Td>
+                    </span>
+                  </div>
+                </td>
 
-                  <Table.Td onClick={() => handleItemSelect(item)}>
-                    <Badge
-                      size="lg"
-                      radius="md"
-                      style={{
-                        backgroundColor:
-                          getScoreBadgeColor(item.score) === "green"
-                            ? "#006B3C"
-                            : getScoreBadgeColor(item.score) === "yellow"
-                            ? "#C5A46D"
-                            : getScoreBadgeColor(item.score) === "orange"
-                            ? "#FF8C00"
-                            : "#FF6B6B",
-                        color: "#F5F5F5",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {item.representative_post_ids?.length}
-                    </Badge>
-                  </Table.Td>
+                {/* Opportunity Name & Description */}
+                <td className="px-6 py-4">
+                  <div className="max-w-sm">
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {item.name}
+                    </div>
+                    {item.one_liner && (
+                      <div className="text-sm text-gray-500 truncate mt-1">
+                        {item.one_liner}
+                      </div>
+                    )}
+                  </div>
+                </td>
 
-                  <Table.Td>
-                    <Button
-                    size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleItemSelect(item);
-                      }}
+                {/* Market Evidence */}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <IconUsers size={16} className="text-gray-400" />
+                    <span className="text-sm text-gray-900">
+                      {item.representative_post_ids?.length || 0} posts
+                    </span>
+                  </div>
+                </td>
+
+                {/* Build Time */}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${getDifficultyColor(item.development_timeline_months || 6)}`}>
+                    {item.development_timeline_months || 6}mo
+                  </span>
+                </td>
+
+                {/* Actions */}
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedItemModal(item)}
+                      className="text-green-600 hover:text-green-900 transition-colors"
                       title="View Details"
-                    >View Details</Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </ScrollArea>
+                    >
+                      <IconEye size={16} />
+                    </button>
+                    <button
+                      onClick={() => setShowScoreBreakdown(true)}
+                      className="text-blue-600 hover:text-blue-900 transition-colors"
+                      title="Score Breakdown"
+                    >
+                      <IconChartBar size={16} />
+                    </button>
+                    {item.representative_post_ids && item.representative_post_ids.length > 0 && (
+                      <button
+                        onClick={() => window.open(`https://reddit.com/r/all/comments/${item.representative_post_ids?.[0]}`, '_blank')}
+                        className="text-gray-600 hover:text-gray-900 transition-colors"
+                        title="View Source Post"
+                      >
+                        <IconExternalLink size={16} />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <Group justify="center">
-            <Button
-              size="sm"
+      {/* Pagination */}
+      <div className="px-6 py-4 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, sortedItems.length)} of {sortedItems.length} results
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
-              onClick={() => setCurrentPage(currentPage - 1)}
-              style={{
-                backgroundColor: "#2A2A2A",
-                color: "#E5E5E5",
-                borderColor: "#404040",
-              }}
+              className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Previous
-            </Button>
-
-            <Text size="sm" c="#F5F5F5">
-              Page {currentPage} of {totalPages}
-            </Text>
-
-            <Button
-              size="sm"
+            </button>
+            
+            <span className="px-3 py-1 text-sm bg-green-600 text-white rounded-md">
+              {currentPage}
+            </span>
+            
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(currentPage + 1)}
-              style={{
-                backgroundColor: "#2A2A2A",
-                color: "#E5E5E5",
-                borderColor: "#404040",
-              }}
+              className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
-            </Button>
-          </Group>
-        )}
-      </Stack>
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Detail Modal */}
-      {renderDetailModal()}
+      {selectedItemModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{selectedItemModal.name}</h3>
+                <p className="text-sm text-gray-500 mt-1">Market Intelligence Analysis</p>
+              </div>
+              <button
+                onClick={() => setSelectedItemModal(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <IconX size={24} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Key Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <IconTarget className="text-green-600" size={20} />
+                    <span className="font-medium text-gray-900">Opportunity Score</span>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-lg font-bold ${getScoreColor(selectedItemModal.score)}`}>
+                    {selectedItemModal.score}/100
+                  </span>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <IconClock className="text-blue-600" size={20} />
+                    <span className="font-medium text-gray-900">Build Time</span>
+                  </div>
+                  <span className="text-lg font-bold text-gray-900">
+                    {selectedItemModal.development_timeline_months || 6} months
+                  </span>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <IconUsers className="text-purple-600" size={20} />
+                    <span className="font-medium text-gray-900">Market Evidence</span>
+                  </div>
+                  <span className="text-lg font-bold text-gray-900">
+                    {selectedItemModal.representative_post_ids?.length || 0} posts
+                  </span>
+                </div>
+              </div>
+
+              {/* Description */}
+              {selectedItemModal.one_liner && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Description</h4>
+                  <p className="text-gray-700">{selectedItemModal.one_liner}</p>
+                </div>
+              )}
+
+              {/* Core Features */}
+              {selectedItemModal.core_features && selectedItemModal.core_features.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Core Features</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedItemModal.core_features.map((feature, index) => (
+                      <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                        {feature}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Required Skills */}
+              {selectedItemModal.required_skills && selectedItemModal.required_skills.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Required Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedItemModal.required_skills.map((skill, index) => (
+                      <span key={index} className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Market Size */}
+              {selectedItemModal.market_size_estimate && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Market Size Estimate</h4>
+                  <p className="text-gray-700">{selectedItemModal.market_size_estimate}</p>
+                </div>
+              )}
+
+              {/* Competitive Landscape */}
+              {selectedItemModal.competitive_landscape && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Competitive Landscape</h4>
+                  <div className="space-y-3 text-gray-700">
+                    <div>
+                      <strong>Market Gap Score:</strong> {selectedItemModal.competitive_landscape.market_gap_score}/100
+                    </div>
+                    <div>
+                      <strong>Competitive Advantage:</strong> {selectedItemModal.competitive_landscape.competitive_advantage}
+                    </div>
+                    {selectedItemModal.competitive_landscape.direct_competitors.length > 0 && (
+                      <div>
+                        <strong>Direct Competitors:</strong> {selectedItemModal.competitive_landscape.direct_competitors.join(", ")}
+                      </div>
+                    )}
+                    {selectedItemModal.competitive_landscape.indirect_competitors.length > 0 && (
+                      <div>
+                        <strong>Indirect Competitors:</strong> {selectedItemModal.competitive_landscape.indirect_competitors.join(", ")}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowScoreBreakdown(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                View Score Breakdown
+              </button>
+              <button
+                onClick={() => setSelectedItemModal(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Score Breakdown Modal */}
-      {currentItem && (
-        <Modal
-          opened={showScoreBreakdown}
-          onClose={() => setShowScoreBreakdown(false)}
-          title="Validation Score Breakdown"
-          size="lg"
-          styles={{
-            content: { backgroundColor: "#1A1A1A" },
-            header: {
-              backgroundColor: "#1A1A1A",
-              borderBottom: "1px solid #404040",
-            },
-            body: { backgroundColor: "#1A1A1A" },
-            title: { color: "#F5F5F5" },
-          }}
-        >
-          <ScoreBreakdown idea={currentItem} />
-        </Modal>
+      {showScoreBreakdown && selectedItemModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-bold text-gray-900">Score Breakdown</h3>
+              <button
+                onClick={() => setShowScoreBreakdown(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <IconX size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="text-center mb-6">
+                <div className={`inline-block px-4 py-2 rounded-full text-2xl font-bold ${getScoreColor(selectedItemModal.score)}`}>
+                  {selectedItemModal.score}/100
+                </div>
+                <p className="text-gray-600 mt-2">Overall Opportunity Score</p>
+              </div>
+
+              {/* Score Components */}
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-900">Market Pain Evidence (30%)</span>
+                    <span className="text-sm text-gray-600">25/30</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-green-600 h-2 rounded-full" style={{ width: '83%' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-900">Market Size & Demand (25%)</span>
+                    <span className="text-sm text-gray-600">20/25</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: '80%' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-900">Competition Analysis (20%)</span>
+                    <span className="text-sm text-gray-600">15/20</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '75%' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-900">Solution Fit (15%)</span>
+                    <span className="text-sm text-gray-600">12/15</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-purple-600 h-2 rounded-full" style={{ width: '80%' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-900">Execution Feasibility (10%)</span>
+                    <span className="text-sm text-gray-600">8/10</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-orange-600 h-2 rounded-full" style={{ width: '80%' }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowScoreBreakdown(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

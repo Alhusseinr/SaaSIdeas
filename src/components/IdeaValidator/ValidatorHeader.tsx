@@ -1,6 +1,5 @@
 "use client";
 
-import { Button, Card, Group, Text, ThemeIcon, Title } from "@mantine/core";
 import { IconBrain, IconX } from "@tabler/icons-react";
 
 interface ValidatorHeaderProps {
@@ -10,50 +9,31 @@ interface ValidatorHeaderProps {
 
 export function ValidatorHeader({ hasFormData, onClearForm }: ValidatorHeaderProps) {
   return (
-    <Card
-      radius="xl"
-      withBorder
-      style={{
-        background: "linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)",
-        borderColor: "#404040",
-      }}
-    >
-      <Group justify="space-between" wrap="wrap">
-        <Group>
-          <ThemeIcon
-            size="xl"
-            radius="lg"
-            style={{
-              backgroundColor: "rgba(245, 245, 245, 0.2)",
-              color: "#F5F5F5",
-            }}
-          >
+    <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl border border-gray-200 p-6">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center text-white">
             <IconBrain size={32} />
-          </ThemeIcon>
-          <div>
-            <Title order={2} c="#F5F5F5">
-              AI Idea Validator
-            </Title>
-            <Text c="rgba(245, 245, 245, 0.8)" size="sm">
-              Test your SaaS idea against real market data and user complaints
-            </Text>
           </div>
-        </Group>
+          <div>
+            <h2 className="text-2xl font-bold text-white">
+              AI Idea Validator
+            </h2>
+            <p className="text-white text-opacity-90 text-sm">
+              Test your SaaS idea against real market data and user complaints
+            </p>
+          </div>
+        </div>
         {hasFormData && (
-          <Button
+          <button
             onClick={onClearForm}
-            size="sm"
-            style={{
-              backgroundColor: "rgba(245, 245, 245, 0.2)",
-              color: "#F5F5F5",
-              border: "1px solid rgba(245, 245, 245, 0.3)",
-            }}
-            leftSection={<IconX size={16} />}
+            className="flex items-center gap-2 px-4 py-2 bg-white bg-opacity-20 text-white border border-white border-opacity-30 rounded-lg text-sm font-medium hover:bg-opacity-30 transition-all"
           >
+            <IconX size={16} />
             Clear Form
-          </Button>
+          </button>
         )}
-      </Group>
-    </Card>
+      </div>
+    </div>
   );
 }

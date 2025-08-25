@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Container, Stack, Title, Text } from '@mantine/core'
 import { supabase } from '@/lib/supabase'
 import { SaasIdeaItem } from '@/lib/supabase'
 import SearchAndFilters, { FilterState } from '@/components/SearchAndFilters'
@@ -129,23 +128,23 @@ export default function MarketIntelligencePage() {
   }
 
   return (
-    <Container size="xl" py="xl">
-      <Stack gap="md">
-        <Title order={2} c="#F5F5F5">Market Intelligence Database</Title>
-        <Text c="#CCCCCC">
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">Market Intelligence Database</h2>
+        <p className="text-lg text-gray-600 mb-6">
           Explore validated SaaS opportunities with advanced filtering and analysis capabilities.
-        </Text>
-        <SearchAndFilters 
-          onFiltersChange={applyFilters}
-          onSearchChange={(query) => applyFilters({ ...filters, searchQuery: query })}
-          totalResults={filteredItems.length}
-        />
-        <DataTable 
-          items={filteredItems} 
-          onItemSelect={setSelectedItem}
-          selectedItem={selectedItem}
-        />
-      </Stack>
-    </Container>
+        </p>
+      </div>
+      <SearchAndFilters 
+        onFiltersChange={applyFilters}
+        onSearchChange={(query) => applyFilters({ ...filters, searchQuery: query })}
+        totalResults={filteredItems.length}
+      />
+      <DataTable 
+        items={filteredItems} 
+        onItemSelect={setSelectedItem}
+        selectedItem={selectedItem}
+      />
+    </div>
   )
 }

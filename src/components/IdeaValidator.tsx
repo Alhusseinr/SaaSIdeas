@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Grid, Stack } from "@mantine/core";
 import { supabase, invokeEdgeFunction } from "@/lib/supabase";
 import { usePricingActions } from "@/contexts/PricingContext";
 import { ValidatorHeader } from "./IdeaValidator/ValidatorHeader";
@@ -102,40 +101,34 @@ export default function IdeaValidator() {
   const hasFormData = Boolean(ideaForm.name || ideaForm.description || validationResult);
 
   return (
-    <Stack gap="xl">
+    <div className="space-y-8">
       <ValidatorHeader hasFormData={hasFormData} onClearForm={clearForm} />
 
-      <Grid>
-        <Grid.Col span={{ base: 12 }}>
-          <ValidationForm
-            ideaForm={ideaForm}
-            onInputChange={handleInputChange}
-            onValidate={validateIdea}
-            isValidating={isValidating}
-            canValidateIdea={canValidateIdea}
-            getCurrentPlan={getCurrentPlan}
-            getRemainingValidations={getRemainingValidations}
-          />
-        </Grid.Col>
+      <div className="grid grid-cols-1 gap-8">
+        <ValidationForm
+          ideaForm={ideaForm}
+          onInputChange={handleInputChange}
+          onValidate={validateIdea}
+          isValidating={isValidating}
+          canValidateIdea={canValidateIdea}
+          getCurrentPlan={getCurrentPlan}
+          getRemainingValidations={getRemainingValidations}
+        />
 
         {(validationResult || error || isValidating) && (
-          <Grid.Col span={{ base: 12 }}>
-            <Stack gap="md">
-              {error && <ErrorState error={error} />}
-              {isValidating && <LoadingState />}
-              {validationResult && (
-                <ValidationResults validationResult={validationResult} />
-              )}
-            </Stack>
-          </Grid.Col>
+          <div className="space-y-6">
+            {error && <ErrorState error={error} />}
+            {isValidating && <LoadingState />}
+            {validationResult && (
+              <ValidationResults validationResult={validationResult} />
+            )}
+          </div>
         )}
 
         {!validationResult && !error && !isValidating && (
-          <Grid.Col span={{ base: 12 }}>
-            <EmptyState />
-          </Grid.Col>
+          <EmptyState />
         )}
-      </Grid>
-    </Stack>
+      </div>
+    </div>
   );
 }

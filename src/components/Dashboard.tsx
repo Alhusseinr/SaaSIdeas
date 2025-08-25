@@ -3,29 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  Container,
-  Title,
-  Text,
-  Button,
-  Group,
-  Card,
-  Stack,
-  Badge,
-  Tabs,
-  Box,
-  AppShell,
-  Avatar,
-  Menu,
-  ActionIcon,
-  Loader,
-  Alert,
-  Grid,
-  Paper,
-  RingProgress,
-  SimpleGrid,
-  ThemeIcon
-} from '@mantine/core'
-import {
   IconUser,
   IconLogout,
   IconDashboard,
@@ -37,9 +14,9 @@ import {
   IconAlertCircle,
   IconChartBar,
   IconUsers,
-  IconTarget
+  IconTarget,
+  IconMenu2
 } from '@tabler/icons-react'
-import { notifications } from '@mantine/notifications'
 import { supabase, SaasIdeaItem } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import DataTable from './DataTable'
@@ -99,28 +76,13 @@ export default function Dashboard() {
 
       if (error) {
         setError(error.message)
-        notifications.show({
-          title: 'Error',
-          message: 'Failed to fetch market opportunities',
-          color: 'red'
-        })
       } else {
         setItems(data || [])
         setFilteredItems(data || [])
-        notifications.show({
-          title: 'Success',
-          message: `Loaded ${data?.length || 0} market opportunities`,
-          color: 'green'
-        })
       }
     } catch (err) {
       const errorMessage = 'Failed to fetch market intelligence data'
       setError(errorMessage)
-      notifications.show({
-        title: 'Error',
-        message: errorMessage,
-        color: 'red'
-      })
     } finally {
       setLoading(false)
     }
@@ -262,155 +224,143 @@ export default function Dashboard() {
     const successRate = totalOps > 0 ? Math.round((highValue / totalOps) * 100) : 0
 
     return (
-      <Card 
-        p="xl" 
-        radius="xl" 
-        withBorder 
-        style={{ 
-          backgroundColor: 'linear-gradient(135deg, rgb(26, 26, 26) 0%, rgb(42, 42, 42) 100%)', 
-          borderColor: 'rgba(138, 141, 145, 0.3)', 
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)', 
-          backdropFilter: 'blur(10px)' 
-        }}
-      >
-        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xl">
-          <Stack align="center" gap="sm">
-            <ThemeIcon size={60} radius="xl" style={{ backgroundColor: '#4A9B8E', color: '#F5F5F5' }}>
-              <IconTarget size={30} />
-            </ThemeIcon>
-            <div style={{ textAlign: 'center' }}>
-              <Text size="xs" c="#8A8D91" tt="uppercase" fw={700} mb="xs">
-                Total Opportunities
-              </Text>
-              <Text fw={700} size="xl" c="#ffffffff">
-                {totalOps.toLocaleString()}
-              </Text>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-green-600 to-blue-600 rounded-2xl flex items-center justify-center">
+              <IconTarget size={28} className="text-white" />
             </div>
-          </Stack>
+            <div className="text-xs text-gray-500 uppercase font-bold mb-2 tracking-wide">
+              Total Opportunities
+            </div>
+            <div className="text-3xl font-bold text-gray-900">
+              {totalOps.toLocaleString()}
+            </div>
+          </div>
 
-          <Stack align="center" gap="sm">
-            <RingProgress
-              size={60}
-              thickness={4}
-              sections={[{ value: successRate, color: '#5DADE2' }]}
-              label={
-                <Text ta="center" size="sm" fw={500} c="#ffffffff">
-                  {successRate}%
-                </Text>
-              }
-            />
-            <div style={{ textAlign: 'center' }}>
-              <Text size="xs" c="#8A8D91" tt="uppercase" fw={700} mb="xs">
-                High-Value Rate
-              </Text>
-              <Text fw={700} size="xl" c="#5DADE2">
-                {highValue.toLocaleString()}
-              </Text>
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center relative">
+              <svg className="w-16 h-16 transform -rotate-90">
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="#e5e7eb"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="url(#gradient)"
+                  strokeWidth="4"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(successRate / 100) * 175.929} 175.929`}
+                />
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#1d4ed8" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-sm font-medium text-gray-900">
+                {successRate}%
+              </span>
             </div>
-          </Stack>
+            <div className="text-xs text-gray-500 uppercase font-bold mb-2 tracking-wide">
+              High-Value Rate
+            </div>
+            <div className="text-3xl font-bold text-blue-600">
+              {highValue.toLocaleString()}
+            </div>
+          </div>
 
-          <Stack align="center" gap="sm">
-            <ThemeIcon size={60} radius="xl" style={{ backgroundColor: '#D4A574', color: '#0D0D0D' }}>
-              <IconChartBar size={30} />
-            </ThemeIcon>
-            <div style={{ textAlign: 'center' }}>
-              <Text size="xs" c="#8A8D91" tt="uppercase" fw={700} mb="xs">
-                Medium-Value Ops
-              </Text>
-              <Text fw={700} size="xl" c="#D4A574">
-                {mediumValue.toLocaleString()}
-              </Text>
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl flex items-center justify-center">
+              <IconChartBar size={28} className="text-white" />
             </div>
-          </Stack>
+            <div className="text-xs text-gray-500 uppercase font-bold mb-2 tracking-wide">
+              Medium-Value Ops
+            </div>
+            <div className="text-3xl font-bold text-orange-600">
+              {mediumValue.toLocaleString()}
+            </div>
+          </div>
 
-          <Stack align="center" gap="sm">
-            <ThemeIcon size={60} radius="xl" style={{ backgroundColor: '#A8A8A8', color: '#0D0D0D' }}>
-              <IconBulb size={30} />
-            </ThemeIcon>
-            <div style={{ textAlign: 'center' }}>
-              <Text size="xs" c="#8A8D91" tt="uppercase" fw={700} mb="xs">
-                Avg Validation Score
-              </Text>
-              <Text fw={700} size="xl" c="#A8A8A8">
-                {totalOps > 0 ? Math.round(filteredItems.reduce((sum, item) => sum + item.score, 0) / totalOps) : 0}
-              </Text>
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-gray-500 to-gray-600 rounded-2xl flex items-center justify-center">
+              <IconBulb size={28} className="text-white" />
             </div>
-          </Stack>
-        </SimpleGrid>
-      </Card>
+            <div className="text-xs text-gray-500 uppercase font-bold mb-2 tracking-wide">
+              Avg Validation Score
+            </div>
+            <div className="text-3xl font-bold text-gray-600">
+              {totalOps > 0 ? Math.round(filteredItems.reduce((sum, item) => sum + item.score, 0) / totalOps) : 0}
+            </div>
+          </div>
+        </div>
+      </div>
     )
   }
 
   const renderTabContent = () => {
     if (loading) {
       return (
-        <Container size="sm" py="xl">
-          <Stack align="center" gap="md">
-            <Loader size="lg" color="#006B3C" />
-            <Text c="#F5F5F5">Loading market intelligence data...</Text>
-          </Stack>
-        </Container>
+        <div className="max-w-sm mx-auto py-20">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+            <p className="text-gray-600">Loading market intelligence data...</p>
+          </div>
+        </div>
       )
     }
 
     if (error) {
       return (
-        <Container size="sm" py="xl">
-          <Alert 
-            icon={<IconAlertCircle size={16} />} 
-            title="Error" 
-            style={{ 
-              backgroundColor: 'rgba(13, 13, 13, 0.95)',
-              borderColor: '#FF6B6B',
-              color: '#F5F5F5',
-              backdropFilter: 'blur(10px)'
-            }}
-          >
-            {error}
-            <Button 
-              style={{ 
-                backgroundColor: '#FF6B6B',
-                color: '#F5F5F5',
-                border: 'none'
-              }}
-              size="sm" 
-              mt="md" 
+        <div className="max-w-sm mx-auto py-20">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <IconAlertCircle size={20} className="text-red-600" />
+              <h3 className="text-lg font-semibold text-red-900">Error</h3>
+            </div>
+            <p className="text-red-700 mb-4">{error}</p>
+            <button 
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
               onClick={fetchItems}
             >
               Retry Load
-            </Button>
-          </Alert>
-        </Container>
+            </button>
+          </div>
+        </div>
       )
     }
 
     switch (activeTab) {
       case 'overview':
         return (
-          <Stack gap="xl">
+          <div className="space-y-8">
             <div>
-              <Title order={2} mb="md" c="#F5F5F5">Strategic Market Overview</Title>
-              <Text c="#CCCCCC" mb="xl">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Strategic Market Overview</h2>
+              <p className="text-lg text-gray-600 mb-8">
                 Comprehensive analysis of validated SaaS opportunities and market intelligence metrics.
-              </Text>
+              </p>
               {renderOverviewMetrics()}
             </div>
             
-            <Grid>
-              <Grid.Col span={{ base: 12 }}>
-                <ProblemOfTheDay onViewDetails={(idea) => {
-                  setSelectedItem(idea);
-                  handleTabChange('ideas');
-                }} />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12 }}>
-                <TrendingProblems onViewDetails={(idea) => {
-                  setSelectedItem(idea);
-                  handleTabChange('ideas');
-                }} />
-              </Grid.Col>
-            </Grid>
-          </Stack>
+            <div className="grid grid-cols-1 gap-8">
+              <ProblemOfTheDay onViewDetails={(idea) => {
+                setSelectedItem(idea);
+                handleTabChange('ideas');
+              }} />
+              <TrendingProblems onViewDetails={(idea) => {
+                setSelectedItem(idea);
+                handleTabChange('ideas');
+              }} />
+            </div>
+          </div>
         )
       
       case 'validator':
@@ -418,11 +368,13 @@ export default function Dashboard() {
       
       case 'ideas':
         return (
-          <Stack gap="md">
-            <Title order={2} c="#F5F5F5">Market Intelligence Database</Title>
-            <Text c="#CCCCCC">
-              Explore validated SaaS opportunities with advanced filtering and analysis capabilities.
-            </Text>
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Market Intelligence Database</h2>
+              <p className="text-lg text-gray-600 mb-6">
+                Explore validated SaaS opportunities with advanced filtering and analysis capabilities.
+              </p>
+            </div>
             <SearchAndFilters 
               onFiltersChange={applyFilters}
               onSearchChange={(query) => applyFilters({ ...filters, searchQuery: query })}
@@ -433,7 +385,7 @@ export default function Dashboard() {
               onItemSelect={setSelectedItem}
               selectedItem={selectedItem}
             />
-          </Stack>
+          </div>
         )
       
       case 'jobs':
@@ -451,104 +403,96 @@ export default function Dashboard() {
   }
 
   return (
-    <AppShell
-      header={{ height: 70 }}
-      navbar={{
-        width: 280,
-        breakpoint: 'sm',
-        collapsed: { mobile: !navbarOpened },
-      }}
-      padding="md"
-      styles={{
-        header: { backgroundColor: '#0D0D0D', borderBottom: '1px solid rgba(138, 141, 145, 0.2)' },
-        navbar: { backgroundColor: '#0D0D0D', borderRight: '1px solid rgba(138, 141, 145, 0.2)' },
-        main: { 
-          background: 'linear-gradient(135deg, #0D0D0D 0%, rgba(10, 31, 68, 0.3) 50%, rgba(138, 141, 145, 0.15) 100%)',
-          minHeight: '100vh'
-        }
-      }}
-    >
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group>
-            <ActionIcon
-              variant="subtle"
-              onClick={() => setNavbarOpened(!navbarOpened)}
-              hiddenFrom="sm"
-              style={{ color: '#F5F5F5' }}
-            >
-              <IconDashboard size={18} />
-            </ActionIcon>
-            <Title order={3} style={{
-              background: 'linear-gradient(135deg, #006B3C 0%, #C5A46D 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text'
-            }}>
-              SaaS Intelligence Platform
-            </Title>
-          </Group>
-
-          <Menu shadow="md" width={200}>
-            <Menu.Target>
-              <ActionIcon variant="subtle" size="lg" style={{ color: '#F5F5F5' }}>
-                <Avatar size="sm" radius="xl" style={{ background: 'linear-gradient(135deg, #006B3C 0%, #C5A46D 100%)' }}>
-                  <IconUser size={18} color="#0D0D0D" />
-                </Avatar>
-              </ActionIcon>
-            </Menu.Target>
-
-            <Menu.Dropdown style={{ backgroundColor: '#0D0D0D', borderColor: 'rgba(138, 141, 145, 0.2)' }}>
-              <Menu.Label style={{ color: '#8A8D91' }}>Account Management</Menu.Label>
-              <Menu.Item>
-                <Text size="sm" fw={500} c="#F5F5F5">
-                  {user?.email || 'Strategic Analyst'}
-                </Text>
-              </Menu.Item>
-              <Menu.Divider style={{ borderColor: 'rgba(138, 141, 145, 0.2)' }} />
-              <Menu.Item 
-                leftSection={<IconLogout size={14} />}
-                onClick={signOut}
-                style={{ color: '#FF6B6B' }}
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <button
+                className="lg:hidden p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                onClick={() => setNavbarOpened(!navbarOpened)}
               >
-                Sign Out
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      </AppShell.Header>
+                <IconMenu2 size={20} />
+              </button>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                SaaS Intelligence Platform
+              </h1>
+            </div>
 
-      <AppShell.Navbar p="md">
-        <Stack gap="xs">
-          <Text size="xs" c="#8A8D91" tt="uppercase" fw={700} mb="md">
-            Navigation
-          </Text>
-          {navigationItems.map((item) => (
-            <Button
-              key={item.value}
-              variant={activeTab === item.value ? "light" : "subtle"}
-              style={{
-                background: activeTab === item.value ? 'linear-gradient(135deg, #0A1F44 0%, rgba(10, 31, 68, 0.8) 100%)' : 'transparent',
-                color: activeTab === item.value ? '#F5F5F5' : '#8A8D91',
-                border: 'none',
-                borderLeft: activeTab === item.value ? '3px solid #C5A46D' : '3px solid transparent'
-              }}
-              justify="flex-start"
-              leftSection={<item.icon size={18} />}
-              onClick={() => handleTabChange(item.value as TabType)}
-              fullWidth
-            >
-              {item.label}
-            </Button>
-          ))}
-        </Stack>
-      </AppShell.Navbar>
+            <div className="relative">
+              <button
+                className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() => {
+                  const dropdown = document.getElementById('user-menu')
+                  if (dropdown) {
+                    dropdown.classList.toggle('hidden')
+                  }
+                }}
+              >
+                <div className="w-8 h-8 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                  <IconUser size={16} className="text-white" />
+                </div>
+              </button>
+              
+              <div id="user-menu" className="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+                <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
+                  {user?.email || 'Strategic Analyst'}
+                </div>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                  onClick={signOut}
+                >
+                  <IconLogout size={14} />
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <AppShell.Main>
-        <Container size="xl">
-          {renderTabContent()}
-        </Container>
-      </AppShell.Main>
-    </AppShell>
+      <div className="flex min-h-screen">
+        {/* Sidebar */}
+        <nav className={`${navbarOpened ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-72 bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out shadow-sm lg:shadow-none`}>
+          <div className="p-6 pt-4">
+            <h2 className="text-xs text-gray-500 uppercase font-bold mb-6 tracking-wide">
+              Navigation
+            </h2>
+            <div className="space-y-2">
+              {navigationItems.map((item) => (
+                <button
+                  key={item.value}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    activeTab === item.value 
+                      ? 'bg-gradient-to-r from-green-50 to-blue-50 text-green-700 shadow-sm border-l-4 border-green-500 transform scale-[1.02]' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:transform hover:scale-[1.01]'
+                  }`}
+                  onClick={() => handleTabChange(item.value as TabType)}
+                >
+                  <item.icon size={18} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </nav>
+
+        {/* Overlay for mobile */}
+        {navbarOpened && (
+          <div 
+            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+            onClick={() => setNavbarOpened(false)}
+          />
+        )}
+
+        {/* Main content */}
+        <main className="flex-1 bg-gray-50 lg:ml-0 min-h-screen">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {renderTabContent()}
+          </div>
+        </main>
+      </div>
+    </div>
   )
 }

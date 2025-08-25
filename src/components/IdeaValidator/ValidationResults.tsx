@@ -1,18 +1,6 @@
 "use client";
 
 import {
-  Badge,
-  Card,
-  Grid,
-  Group,
-  List,
-  Progress,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-} from "@mantine/core";
-import {
   IconBrain,
   IconChartBar,
   IconCheck,
@@ -37,311 +25,173 @@ interface ValidationResultsProps {
 }
 
 export function ValidationResults({ validationResult }: ValidationResultsProps) {
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "#006B3C";
-    if (score >= 60) return "#C5A46D";
-    if (score >= 40) return "#FF8C00";
-    return "#FF6B6B";
+  const getScoreColorClass = (score: number) => {
+    if (score >= 80) return "bg-green-600";
+    if (score >= 60) return "bg-yellow-500";
+    if (score >= 40) return "bg-orange-500";
+    return "bg-red-500";
   };
 
-  const getCompetitionColor = (level: string) => {
+  const getCompetitionColorClass = (level: string) => {
     switch (level?.toLowerCase()) {
       case "low":
-        return "#006B3C";
+        return "bg-green-600";
       case "medium":
-        return "#C5A46D";
+        return "bg-yellow-500";
       case "high":
-        return "#FF6B6B";
+        return "bg-red-500";
       default:
-        return "#666666";
+        return "bg-gray-500";
     }
   };
 
   return (
-    <Card
-      radius="xl"
-      withBorder
-      style={{ backgroundColor: "#1A1A1A", borderColor: "#404040" }}
-    >
-      <Card.Section
-        withBorder
-        p="xl"
-        style={{
-          borderColor: "#404040",
-          background: "linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)",
-        }}
-      >
-        <Group justify="space-between" align="center">
-          <Group>
-            <ThemeIcon
-              size="lg"
-              radius="lg"
-              style={{
-                backgroundColor: "rgba(245, 245, 245, 0.2)",
-                color: "#F5F5F5",
-              }}
-            >
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+      <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-t-2xl border-b border-gray-200 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center text-white">
               <IconChartBar size={24} />
-            </ThemeIcon>
-            <div>
-              <Title order={2} c="#F5F5F5">
-                Validation Results
-              </Title>
-              <Text c="rgba(245, 245, 245, 0.8)" size="sm">
-                AI analysis of your SaaS idea against market data
-              </Text>
             </div>
-          </Group>
+            <div>
+              <h2 className="text-2xl font-bold text-white">
+                Validation Results
+              </h2>
+              <p className="text-white text-opacity-80 text-sm">
+                AI analysis of your SaaS idea against market data
+              </p>
+            </div>
+          </div>
           {validationResult.score && (
-            <Badge
-              size="xl"
-              style={{
-                backgroundColor: getScoreColor(validationResult.score),
-                color: "#F5F5F5",
-                fontSize: "20px",
-                fontWeight: 700,
-                padding: "12px 20px",
-              }}
-            >
+            <div className={`${getScoreColorClass(validationResult.score)} text-white px-5 py-3 rounded-lg text-xl font-bold`}>
               {validationResult.score}/100
-            </Badge>
+            </div>
           )}
-        </Group>
-      </Card.Section>
+        </div>
+      </div>
 
-      <Card.Section p="xl">
-        <Stack gap="lg">
-          {/* Score Rationale */}
-          <Card
-            radius="lg"
-            withBorder
-            style={{
-              backgroundColor: "#2A2A2A",
-              borderColor: "#404040",
-            }}
-          >
-            <Card.Section p="lg">
-              <Group mb="md">
-                <ThemeIcon
-                  size="md"
-                  radius="md"
-                  style={{
-                    backgroundColor: "#006B3C",
-                    color: "#F5F5F5",
-                  }}
-                >
-                  <IconBrain size={16} />
-                </ThemeIcon>
-                <Title order={4} c="#F5F5F5">
-                  Market Analysis
-                </Title>
-              </Group>
-              <Progress
-                value={validationResult.score}
-                size="lg"
-                radius="md"
-                mb="md"
-                style={{
-                  "& .mantine-Progress-bar": {
-                    backgroundColor: getScoreColor(validationResult.score),
-                  },
-                }}
-              />
-              <Text c="#E5E5E5" lh={1.6}>
-                {validationResult.rationale}
-              </Text>
-            </Card.Section>
-          </Card>
+      <div className="p-6 space-y-6">
+        {/* Score Rationale */}
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-green-600 rounded-md flex items-center justify-center text-white">
+              <IconBrain size={16} />
+            </div>
+            <h4 className="text-lg font-semibold text-gray-900">
+              Market Analysis
+            </h4>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+            <div
+              className={`h-3 rounded-full ${getScoreColorClass(validationResult.score)}`}
+              style={{ width: `${validationResult.score}%` }}
+            ></div>
+          </div>
+          <p className="text-gray-700 leading-relaxed">
+            {validationResult.rationale}
+          </p>
+        </div>
 
-          {/* Market Evidence */}
-          {validationResult.market_evidence &&
-            validationResult.market_evidence.length > 0 && (
-              <Card
-                radius="lg"
-                withBorder
-                style={{
-                  backgroundColor: "#2A2A2A",
-                  borderColor: "#404040",
-                }}
-              >
-                <Card.Section p="lg">
-                  <Group mb="md">
-                    <IconCheck size={16} color="#006B3C" />
-                    <Title order={4} c="#F5F5F5">
-                      Market Evidence Found
-                    </Title>
-                  </Group>
-                  <List
-                    spacing="sm"
-                    size="sm"
-                    icon={
-                      <Text c="#006B3C" fw={700}>
-                        ▶
-                      </Text>
-                    }
+        {/* Market Evidence */}
+        {validationResult.market_evidence &&
+          validationResult.market_evidence.length > 0 && (
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <IconCheck size={16} className="text-green-600" />
+                <h4 className="text-lg font-semibold text-gray-900">
+                  Market Evidence Found
+                </h4>
+              </div>
+              <ul className="space-y-2">
+                {validationResult.market_evidence.map((evidence, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-1">▶</span>
+                    <span className="text-gray-700">{evidence}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {validationResult.competition_level && (
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="w-10 h-10 bg-yellow-500 rounded-md flex items-center justify-center text-gray-900">
+                  <IconTrendingUp size={20} />
+                </div>
+                <div className="text-xs text-gray-600 uppercase font-bold tracking-wide">
+                  Competition Level
+                </div>
+                <div className={`${getCompetitionColorClass(validationResult.competition_level)} text-white px-3 py-1 rounded-md text-sm font-medium`}>
+                  {validationResult.competition_level}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {typeof validationResult.similar_complaints === "number" && (
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="w-10 h-10 bg-green-600 rounded-md flex items-center justify-center text-white">
+                  <IconMessage size={20} />
+                </div>
+                <div className="text-xs text-gray-600 uppercase font-bold tracking-wide">
+                  Similar Complaints
+                </div>
+                <div className="bg-green-600 text-white px-3 py-1 rounded-md text-sm font-medium">
+                  {validationResult.similar_complaints} posts
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Keyword Matches */}
+        {validationResult.keyword_matches &&
+          validationResult.keyword_matches.length > 0 && (
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <IconTag size={16} className="text-green-600" />
+                <h4 className="text-lg font-semibold text-gray-900">
+                  Matching Keywords Found
+                </h4>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {validationResult.keyword_matches.map((keyword, index) => (
+                  <span
+                    key={index}
+                    className="bg-green-600 text-white px-3 py-1 rounded-md text-sm font-medium"
                   >
-                    {validationResult.market_evidence.map((evidence, index) => (
-                      <List.Item key={index}>
-                        <Text c="#E5E5E5">{evidence}</Text>
-                      </List.Item>
-                    ))}
-                  </List>
-                </Card.Section>
-              </Card>
-            )}
+                    #{keyword}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* Stats Grid */}
-          <Grid>
-            {validationResult.competition_level && (
-              <Grid.Col span={6}>
-                <Card
-                  radius="md"
-                  withBorder
-                  style={{
-                    backgroundColor: "#2A2A2A",
-                    borderColor: "#404040",
-                  }}
-                >
-                  <Stack align="center" gap="xs">
-                    <ThemeIcon
-                      size="lg"
-                      radius="md"
-                      style={{
-                        backgroundColor: "#C5A46D",
-                        color: "#0D0D0D",
-                      }}
-                    >
-                      <IconTrendingUp size={20} />
-                    </ThemeIcon>
-                    <Text size="xs" c="#CCCCCC" tt="uppercase" fw={700}>
-                      Competition Level
-                    </Text>
-                    <Badge
-                      style={{
-                        backgroundColor: getCompetitionColor(
-                          validationResult.competition_level
-                        ),
-                        color: "#F5F5F5",
-                      }}
-                    >
-                      {validationResult.competition_level}
-                    </Badge>
-                  </Stack>
-                </Card>
-              </Grid.Col>
-            )}
-
-            {typeof validationResult.similar_complaints === "number" && (
-              <Grid.Col span={6}>
-                <Card
-                  radius="md"
-                  withBorder
-                  style={{
-                    backgroundColor: "#2A2A2A",
-                    borderColor: "#404040",
-                  }}
-                >
-                  <Stack align="center" gap="xs">
-                    <ThemeIcon
-                      size="lg"
-                      radius="md"
-                      style={{
-                        backgroundColor: "#006B3C",
-                        color: "#F5F5F5",
-                      }}
-                    >
-                      <IconMessage size={20} />
-                    </ThemeIcon>
-                    <Text size="xs" c="#CCCCCC" tt="uppercase" fw={700}>
-                      Similar Complaints
-                    </Text>
-                    <Badge
-                      style={{
-                        backgroundColor: "#006B3C",
-                        color: "#F5F5F5",
-                      }}
-                    >
-                      {validationResult.similar_complaints} posts
-                    </Badge>
-                  </Stack>
-                </Card>
-              </Grid.Col>
-            )}
-          </Grid>
-
-          {/* Keyword Matches */}
-          {validationResult.keyword_matches &&
-            validationResult.keyword_matches.length > 0 && (
-              <Card
-                radius="lg"
-                withBorder
-                style={{
-                  backgroundColor: "#2A2A2A",
-                  borderColor: "#404040",
-                }}
-              >
-                <Card.Section p="lg">
-                  <Group mb="md">
-                    <IconTag size={16} color="#006B3C" />
-                    <Title order={4} c="#F5F5F5">
-                      Matching Keywords Found
-                    </Title>
-                  </Group>
-                  <Group gap="xs">
-                    {validationResult.keyword_matches.map((keyword, index) => (
-                      <Badge
-                        key={index}
-                        style={{
-                          backgroundColor: "#006B3C",
-                          color: "#F5F5F5",
-                        }}
-                      >
-                        #{keyword}
-                      </Badge>
-                    ))}
-                  </Group>
-                </Card.Section>
-              </Card>
-            )}
-
-          {/* Recommendations */}
-          {validationResult.recommendations &&
-            validationResult.recommendations.length > 0 && (
-              <Card
-                radius="lg"
-                withBorder
-                style={{
-                  backgroundColor: "#2A2A2A",
-                  borderColor: "#404040",
-                }}
-              >
-                <Card.Section p="lg">
-                  <Group mb="md">
-                    <IconBulb size={16} color="#C5A46D" />
-                    <Title order={4} c="#F5F5F5">
-                      AI Recommendations
-                    </Title>
-                  </Group>
-                  <List
-                    spacing="sm"
-                    size="sm"
-                    icon={
-                      <Text c="#C5A46D" fw={700}>
-                        💡
-                      </Text>
-                    }
-                  >
-                    {validationResult.recommendations.map((rec, index) => (
-                      <List.Item key={index}>
-                        <Text c="#E5E5E5">{rec}</Text>
-                      </List.Item>
-                    ))}
-                  </List>
-                </Card.Section>
-              </Card>
-            )}
-        </Stack>
-      </Card.Section>
-    </Card>
+        {/* Recommendations */}
+        {validationResult.recommendations &&
+          validationResult.recommendations.length > 0 && (
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <IconBulb size={16} className="text-yellow-500" />
+                <h4 className="text-lg font-semibold text-gray-900">
+                  AI Recommendations
+                </h4>
+              </div>
+              <ul className="space-y-2">
+                {validationResult.recommendations.map((rec, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-yellow-500 font-bold mt-1">💡</span>
+                    <span className="text-gray-700">{rec}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+      </div>
+    </div>
   );
 }

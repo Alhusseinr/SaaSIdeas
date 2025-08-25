@@ -1,16 +1,6 @@
 "use client";
 
 import {
-  Button,
-  Card,
-  Group,
-  Loader,
-  Stack,
-  Text,
-  TextInput,
-  Textarea,
-} from "@mantine/core";
-import {
   IconBolt,
   IconBulb,
   IconChartBar,
@@ -55,206 +45,138 @@ export function ValidationForm({
     !canValidateIdea;
 
   return (
-    <Card
-      radius="xl"
-      withBorder
-      style={{ backgroundColor: "#1A1A1A", borderColor: "#404040" }}
-    >
-      <Card.Section p="xl" withBorder style={{ borderColor: "#404040" }}>
-        <Stack gap="md">
-          <TextInput
-            label={
-              <Group gap="xs">
-                <IconBulb size={16} color="#006B3C" />
-                <Text fw={600} c="#F5F5F5">
-                  Idea Name *
-                </Text>
-              </Group>
-            }
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+      <div className="space-y-6">
+        {/* Idea Name */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+            <IconBulb size={16} className="text-green-500" />
+            Idea Name *
+          </label>
+          <input
+            type="text"
             placeholder="e.g., Project Management for Remote Teams"
             value={ideaForm.name}
             onChange={(e) => onInputChange("name", e.target.value)}
-            radius="md"
-            styles={{
-              input: {
-                backgroundColor: "#2A2A2A",
-                borderColor: "#404040",
-                color: "#F5F5F5",
-              },
-              label: { color: "#F5F5F5" },
-            }}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
           />
+        </div>
 
-          <Textarea
-            label={
-              <Group gap="xs">
-                <IconInfoCircle size={16} color="#006B3C" />
-                <Text fw={600} c="#F5F5F5">
-                  Description & Value Proposition *
-                </Text>
-              </Group>
-            }
+        {/* Description */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+            <IconInfoCircle size={16} className="text-green-500" />
+            Description & Value Proposition *
+          </label>
+          <textarea
             placeholder="Describe what your SaaS does and what problem it solves..."
             value={ideaForm.description}
             onChange={(e) => onInputChange("description", e.target.value)}
             rows={4}
-            radius="md"
-            styles={{
-              input: {
-                backgroundColor: "#2A2A2A",
-                borderColor: "#404040",
-                color: "#F5F5F5",
-              },
-              label: { color: "#F5F5F5" },
-            }}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all resize-none"
           />
+        </div>
 
-          <TextInput
-            label={
-              <Group gap="xs">
-                <IconUser size={16} color="#006B3C" />
-                <Text fw={600} c="#F5F5F5">
-                  Target User
-                </Text>
-              </Group>
-            }
+        {/* Target User */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+            <IconUser size={16} className="text-green-500" />
+            Target User
+          </label>
+          <input
+            type="text"
             placeholder="e.g., Small business owners, Freelancers, Marketing teams"
             value={ideaForm.target_user}
             onChange={(e) => onInputChange("target_user", e.target.value)}
-            radius="md"
-            styles={{
-              input: {
-                backgroundColor: "#2A2A2A",
-                borderColor: "#404040",
-                color: "#F5F5F5",
-              },
-              label: { color: "#F5F5F5" },
-            }}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
           />
+        </div>
 
-          <Textarea
-            label={
-              <Group gap="xs">
-                <IconSettings size={16} color="#006B3C" />
-                <Text fw={600} c="#F5F5F5">
-                  Core Features
-                </Text>
-              </Group>
-            }
+        {/* Core Features */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+            <IconSettings size={16} className="text-green-500" />
+            Core Features
+          </label>
+          <textarea
             placeholder="List the main features (one per line or comma-separated)"
             value={ideaForm.core_features}
             onChange={(e) => onInputChange("core_features", e.target.value)}
             rows={3}
-            radius="md"
-            styles={{
-              input: {
-                backgroundColor: "#2A2A2A",
-                borderColor: "#404040",
-                color: "#F5F5F5",
-              },
-              label: { color: "#F5F5F5" },
-            }}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all resize-none"
           />
+        </div>
 
-          <TextInput
-            label={
-              <Group gap="xs">
-                <IconCurrencyDollar size={16} color="#006B3C" />
-                <Text fw={600} c="#F5F5F5">
-                  Pricing Model
-                </Text>
-              </Group>
-            }
+        {/* Pricing Model */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+            <IconCurrencyDollar size={16} className="text-green-500" />
+            Pricing Model
+          </label>
+          <input
+            type="text"
             placeholder="e.g., $29/month per user, Freemium, One-time purchase"
             value={ideaForm.pricing_model}
             onChange={(e) => onInputChange("pricing_model", e.target.value)}
-            radius="md"
-            styles={{
-              input: {
-                backgroundColor: "#2A2A2A",
-                borderColor: "#404040",
-                color: "#F5F5F5",
-              },
-              label: { color: "#F5F5F5" },
-            }}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
           />
+        </div>
 
-          {/* Usage Indicator */}
-          <Card
-            withBorder
-            radius="md"
-            p="md"
-            style={{ backgroundColor: "#2A2A2A", borderColor: "#404040" }}
-          >
-            <Group justify="space-between" mb="xs">
-              <Group gap="xs">
-                <IconChartBar size={16} color="#006B3C" />
-                <Text size="sm" fw={600} c="#F5F5F5">
-                  Validation Credits
-                </Text>
-              </Group>
-              <Text
-                size="sm"
-                fw={600}
-                c={
-                  getRemainingValidations() === -1
-                    ? "#006B3C"
-                    : getRemainingValidations() <= 5
-                    ? "#FF6B6B"
-                    : "#006B3C"
-                }
-              >
-                {getRemainingValidations() === -1
-                  ? "Unlimited"
-                  : `${getRemainingValidations()} remaining`}
-              </Text>
-            </Group>
-            {getCurrentPlan() && (
-              <Text size="xs" c="#CCCCCC">
-                {getCurrentPlan()?.display_name} plan
-                {getRemainingValidations() <= 5 &&
-                  getRemainingValidations() > 0 && (
-                    <Text span c="#C5A46D" ml="xs">
-                      • Running low on credits
-                    </Text>
-                  )}
-              </Text>
-            )}
-          </Card>
+        {/* Usage Indicator */}
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <IconChartBar size={16} className="text-green-500" />
+              <span className="text-sm font-semibold text-gray-900">Validation Credits</span>
+            </div>
+            <span className={`text-sm font-semibold ${
+              getRemainingValidations() === -1
+                ? "text-green-500"
+                : getRemainingValidations() <= 5
+                ? "text-red-500"
+                : "text-green-500"
+            }`}>
+              {getRemainingValidations() === -1
+                ? "Unlimited"
+                : `${getRemainingValidations()} remaining`}
+            </span>
+          </div>
+          {getCurrentPlan() && (
+            <p className="text-xs text-gray-600">
+              {getCurrentPlan()?.display_name} plan
+              {getRemainingValidations() <= 5 && getRemainingValidations() > 0 && (
+                <span className="text-orange-500 ml-1">• Running low on credits</span>
+              )}
+            </p>
+          )}
+        </div>
 
-          <Button
-            onClick={onValidate}
-            disabled={isDisabled}
-            size="lg"
-            radius="md"
-            fullWidth
-            style={{
-              background: isDisabled
-                ? "#666666"
-                : "linear-gradient(135deg, #006B3C 0%, #0F4C3A 100%)",
-              color: "#F5F5F5",
-              border: "none",
-            }}
-            leftSection={
-              isValidating ? (
-                <Loader size="sm" color="#F5F5F5" />
-              ) : isDisabled ? (
-                <IconLock size={20} />
-              ) : (
-                <IconBolt size={20} />
-              )
-            }
-          >
-            {isValidating
-              ? "Analyzing Against Market Data..."
-              : !canValidateIdea
-              ? "Upgrade Plan to Continue"
-              : (!ideaForm.name.trim() || !ideaForm.description.trim())
-              ? "Fill Required Fields"
-              : "Validate My Idea"}
-          </Button>
-        </Stack>
-      </Card.Section>
-    </Card>
+        {/* Validate Button */}
+        <button
+          onClick={onValidate}
+          disabled={isDisabled}
+          className={`w-full flex items-center justify-center gap-3 py-4 px-6 rounded-lg font-semibold transition-all ${
+            isDisabled
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+          } text-white`}
+        >
+          {isValidating ? (
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+          ) : isDisabled ? (
+            <IconLock size={20} />
+          ) : (
+            <IconBolt size={20} />
+          )}
+          {isValidating
+            ? "Analyzing Against Market Data..."
+            : !canValidateIdea
+            ? "Upgrade Plan to Continue"
+            : (!ideaForm.name.trim() || !ideaForm.description.trim())
+            ? "Fill Required Fields"
+            : "Validate My Idea"}
+        </button>
+      </div>
+    </div>
   );
 }

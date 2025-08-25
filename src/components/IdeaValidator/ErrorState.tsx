@@ -1,6 +1,5 @@
 "use client";
 
-import { Alert, Text } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 
 interface ErrorStateProps {
@@ -9,18 +8,18 @@ interface ErrorStateProps {
 
 export function ErrorState({ error }: ErrorStateProps) {
   return (
-    <Alert
-      icon={<IconX size={16} />}
-      title="Validation Error"
-      color="red"
-      radius="md"
-      style={{
-        backgroundColor: "#2A2A2A",
-        borderColor: "#FF6B6B",
-        color: "#F5F5F5",
-      }}
-    >
-      <Text c="#FF6B6B">{error}</Text>
-    </Alert>
+    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+      <div className="flex items-start gap-3">
+        <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+          <IconX size={16} className="text-white" />
+        </div>
+        <div>
+          <h4 className="text-red-900 font-semibold mb-1">
+            Validation Error
+          </h4>
+          <p className="text-red-700">{error}</p>
+        </div>
+      </div>
+    </div>
   );
 }

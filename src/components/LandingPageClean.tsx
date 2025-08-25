@@ -74,50 +74,41 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
 
   const pricingPlans = [
     {
-      id: 'starter',
-      name: 'Starter',
-      price: 39,
-      period: 'month',
-      popular: false,
-      description: 'Perfect for solo entrepreneurs testing the waters',
-      features: [
-        'Access to 5,000+ validated problems',
-        'Basic AI validation scoring', 
-        'Implementation guides',
-        'Reddit source links',
-        'Email support'
-      ]
-    },
-    {
-      id: 'professional',
-      name: 'Professional',
+      id: 'monthly',
+      name: 'Monthly',
       price: 79,
       period: 'month',
-      popular: true,
-      description: 'For serious builders ready to launch',
+      popular: false,
+      description: 'Full access, cancel anytime',
       features: [
-        'Full database (15,000+ problems)',
+        'Full database (50,000+ problems)',
         'Advanced AI analysis with GPT-4',
-        'Multi-platform data (Reddit + Twitter)',
-        'Market trend tracking',
+        'All 14+ platform data sources',
+        'Real-time trend tracking',
         'Priority support & live chat',
-        'Custom filters & saved searches'
+        'Advanced filters & saved searches',
+        'API access',
+        'Team workspace (up to 3 users)',
+        'Cancel anytime'
       ]
     },
     {
-      id: 'enterprise', 
-      name: 'Team',
-      price: 199,
-      period: 'month',
-      popular: false,
-      description: 'For teams and agencies building multiple products',
+      id: 'lifetime',
+      name: 'Lifetime Access', 
+      price: 497,
+      period: 'one-time',
+      popular: true,
+      description: 'Pay once, own forever - Best value!',
       features: [
-        'Everything in Professional',
-        'Team collaboration workspace',
-        'White-label reports',
-        'API access',
-        'Dedicated account manager',
-        'Custom data sources'
+        'Everything in Monthly plan',
+        'Lifetime access (no recurring fees)',
+        'All future updates included',
+        'Priority feature requests',
+        'Founder community access',
+        'Exclusive beta features',
+        'White-label export rights',
+        '60-day money-back guarantee',
+        'Save $1,451+ vs monthly ($79 × 18+ months)'
       ]
     }
   ]
@@ -397,62 +388,6 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
             <div className="inline-flex items-center gap-2 text-sm text-gray-500 bg-white px-4 py-2 rounded-full border border-gray-200">
               <IconDatabase size={16} />
               <span>Processing 150K+ data points daily across all platforms</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Data Sources Section */}
-      <div className="bg-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4">
-              We Monitor 50+ Communities for Real Problems
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Our AI scans the most active entrepreneurship, tech, and business communities to find validated problems with built-in demand.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-            {[
-              { name: 'r/SaaS', members: '180K', category: 'Business' },
-              { name: 'r/Entrepreneur', members: '1.2M', category: 'Business' },
-              { name: 'r/startups', members: '1.5M', category: 'Business' },
-              { name: 'r/webdev', members: '1.8M', category: 'Tech' },
-              { name: 'r/programming', members: '4.2M', category: 'Tech' },
-              { name: 'r/productivity', members: '1.1M', category: 'Lifestyle' },
-              { name: 'r/freelance', members: '285K', category: 'Work' },
-              { name: 'r/remotework', members: '180K', category: 'Work' },
-              { name: 'r/personalfinance', members: '15.8M', category: 'Finance' },
-              { name: 'r/investing', members: '1.9M', category: 'Finance' },
-              { name: 'r/smallbusiness', members: '1.4M', category: 'Business' },
-              { name: 'r/marketing', members: '780K', category: 'Business' },
-              { name: 'r/cscareerquestions', members: '1.3M', category: 'Tech' },
-              { name: 'r/digitalnomad', members: '1.8M', category: 'Lifestyle' },
-              { name: 'r/sideproject', members: '200K', category: 'Business' }
-            ].map((subreddit, index) => (
-              <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-100 hover:border-orange-200 hover:bg-orange-50 transition-all duration-200 group">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center group-hover:bg-orange-600 transition-colors">
-                    <span className="text-white text-xs font-bold">R</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 text-sm truncate">{subreddit.name}</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">{subreddit.members} members</span>
-                  <span className="text-orange-600 font-medium">{subreddit.category}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-center mt-8">
-            <div className="inline-flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
-              <IconDatabase size={16} />
-              <span>+ 35 more communities analyzed daily</span>
             </div>
           </div>
         </div>

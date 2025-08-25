@@ -1,54 +1,39 @@
 "use client";
 
-import { Card, Center, Group, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { IconBolt, IconCheck } from "@tabler/icons-react";
 
 export function EmptyState() {
   return (
-    <Card
-      radius="xl"
-      withBorder
-      style={{ backgroundColor: "#1A1A1A", borderColor: "#404040" }}
-    >
-      <Center p="xl">
-        <Stack align="center" gap="md" maw={400}>
-          <ThemeIcon
-            size={80}
-            radius="xl"
-            style={{ backgroundColor: "#006B3C", color: "#F5F5F5" }}
-          >
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+      <div className="flex items-center justify-center p-12">
+        <div className="flex flex-col items-center space-y-6 max-w-md text-center">
+          <div className="w-20 h-20 bg-green-600 rounded-2xl flex items-center justify-center text-white">
             <IconBolt size={40} />
-          </ThemeIcon>
-          <Title order={3} ta="center" c="#F5F5F5">
+          </div>
+          <h3 className="text-xl font-bold text-gray-900">
             Ready to Validate Your Idea?
-          </Title>
-          <Text c="#CCCCCC" ta="center" lh={1.6}>
-            Fill out the form on the left and click "Validate My Idea" to get
+          </h3>
+          <p className="text-gray-600 leading-relaxed">
+            Fill out the form above and click "Validate My Idea" to get
             comprehensive market insights powered by AI analysis of real user
             complaints and market data.
-          </Text>
-          <Group gap="md" justify="center">
-            <Group gap="xs">
-              <IconCheck size={16} color="#006B3C" />
-              <Text size="xs" c="#CCCCCC">
-                Real market data
-              </Text>
-            </Group>
-            <Group gap="xs">
-              <IconCheck size={16} color="#006B3C" />
-              <Text size="xs" c="#CCCCCC">
-                AI-powered analysis
-              </Text>
-            </Group>
-            <Group gap="xs">
-              <IconCheck size={16} color="#006B3C" />
-              <Text size="xs" c="#CCCCCC">
-                Instant results
-              </Text>
-            </Group>
-          </Group>
-        </Stack>
-      </Center>
-    </Card>
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <IconCheck size={16} className="text-green-600" />
+              <span className="text-gray-600">Real market data</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <IconCheck size={16} className="text-green-600" />
+              <span className="text-gray-600">AI-powered analysis</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <IconCheck size={16} className="text-green-600" />
+              <span className="text-gray-600">Instant results</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

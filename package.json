@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "deploy:one": "for f in $npm_config_names; do npx supabase functions deploy $f --project-ref fjydrbrxguoptnysdzmk --no-verify-jwt; done",
+    "deploy:all": "for f in supabase/functions/*; do [ -d \"$f\" ] && npx supabase functions deploy \"$(basename \"$f\")\" --project-ref fjydrbrxguoptnysdzmk --no-verify-jwt || true; done"
   },
   "dependencies": {
     "@mantine/charts": "^7.13.2",

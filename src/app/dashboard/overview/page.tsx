@@ -62,6 +62,7 @@ export default function OverviewPage() {
   const highValueOpportunities = items.filter(item => item.score >= 80).length
   const averageScore = items.length > 0 ? Math.round(items.reduce((sum, item) => sum + item.score, 0) / items.length) : 0
   const recentOpportunities = items.filter(item => {
+    if (!item.created_at) return false
     const itemDate = new Date(item.created_at)
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
@@ -107,8 +108,8 @@ export default function OverviewPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-2">Strategic Overview</h1>
-          <p className="text-gray-400">Monitor your SaaS opportunity intelligence and market insights</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Strategic Overview</h1>
+          <p className="text-lg text-gray-600">Monitor your SaaS opportunity intelligence and market insights</p>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -126,11 +127,11 @@ export default function OverviewPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white mb-2">Strategic Overview</h1>
-        <p className="text-gray-400">Monitor your SaaS opportunity intelligence and market insights</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">Strategic Market Overview</h1>
+        <p className="text-lg text-gray-600">Comprehensive analysis of validated SaaS opportunities and market intelligence metrics.</p>
       </div>
 
       {/* Metrics Grid */}

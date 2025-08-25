@@ -1,0 +1,96 @@
+{
+  "subreddits": {
+    "business": [
+      "smallbusiness",
+      "Entrepreneur",
+      "startups",
+      "SaaS",
+      "freelance",
+      "ecommerce",
+      "business",
+      "sidehustle",
+      "solopreneur",
+      "digitalnomad",
+      "SideProject",
+      "IndieHackers"
+    ],
+    "technology": [
+      "programming",
+      "webdev",
+      "devops",
+      "sysadmin",
+      "learnprogramming",
+      "ITCareerQuestions",
+      "cscareerquestions",
+      "aws",
+      "selfhosted",
+      "dataengineering",
+      "MachineLearning",
+      "digitalmarketing"
+    ],
+    "productivity": [
+      "productivity",
+      "getorganized",
+      "automation",
+      "projectmanagement",
+      "NotionSo",
+      "todoist",
+      "GTD",
+      "organization"
+    ],
+    "finance": [
+      "accounting",
+      "bookkeeping",
+      "personalfinance",
+      "customerservice",
+      "taxes",
+      "financialindependence",
+      "investing",
+      "realestateinvesting"
+    ],
+    "general_frustration": [
+      "mildlyinfuriating",
+      "antiwork", 
+      "jobs",
+      "work",
+      "complaints"
+    ],
+    "high_traffic": [
+      "AskReddit",
+      "LifeProTips",
+      "YouShouldKnow"
+    ]
+  },
+  "phrases": {
+    "frustration": [
+      "frustrated",
+      "annoying",
+      "ridiculous"
+    ],
+    "broken_functionality": [
+      "wish there was",
+      "doesn't work",
+      "broken",
+      "terrible"
+    ],
+    "time_productivity": [
+      "takes forever",
+      "manual process",
+      "inefficient"
+    ],
+    "unmet_needs": [
+      "need a tool for",
+      "looking for software",
+      "no good solution"
+    ]
+  },
+  "settings": {
+    "default_posts_per_search": 2,
+    "default_time_range": "week",
+    "rate_limit_delay_ms": 5000,
+    "subreddit_delay_ms": 10000,
+    "sorted_by": ["hot"],
+    "max_daily_posts": 500,
+    "emergency_mode": true
+  }
+}
