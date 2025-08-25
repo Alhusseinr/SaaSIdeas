@@ -34,7 +34,7 @@ export default function DataTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [selectedItemModal, setSelectedItemModal] = useState<SaasIdeaItem | null>(null);
-  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'score'>('details');
 
   const sortedItems = useMemo(() => {
     const sorted = [...items].sort((a, b) => {
@@ -203,7 +203,10 @@ export default function DataTable({
                       <IconEye size={16} />
                     </button>
                     <button
-                      onClick={() => setShowScoreBreakdown(true)}
+                      onClick={() => {
+                        setSelectedItemModal(item);
+                        setActiveTab('score');
+                      }}
                       className="text-blue-600 hover:text-blue-900 transition-colors"
                       title="Score Breakdown"
                     >
@@ -257,10 +260,10 @@ export default function DataTable({
         </div>
       </div>
 
-      {/* Detail Modal */}
+      {/* Unified Modal */}
       {selectedItemModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-transparent backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-300">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
@@ -268,16 +271,45 @@ export default function DataTable({
                 <p className="text-sm text-gray-500 mt-1">Market Intelligence Analysis</p>
               </div>
               <button
-                onClick={() => setSelectedItemModal(null)}
+                onClick={() => {
+                  setSelectedItemModal(null);
+                  setActiveTab('details');
+                }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <IconX size={24} />
               </button>
             </div>
 
+            {/* Tab Navigation */}
+            <div className="flex border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('details')}
+                className={`px-6 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'details'
+                    ? 'border-b-2 border-green-500 text-green-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Details
+              </button>
+              <button
+                onClick={() => setActiveTab('score')}
+                className={`px-6 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'score'
+                    ? 'border-b-2 border-green-500 text-green-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Score Breakdown
+              </button>
+            </div>
+
             {/* Modal Content */}
             <div className="p-6 space-y-6">
-              {/* Key Metrics */}
+              {activeTab === 'details' && (
+                <>
+                  {/* Key Metrics */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -378,18 +410,98 @@ export default function DataTable({
                   </div>
                 </div>
               )}
+
+              {/* Ready to Build This Section */}
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-green-200">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-green-600 rounded-full p-2">
+                    <IconBulb className="text-white" size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Ready to Build This?</h4>
+                    <p className="text-sm text-gray-600">Get a comprehensive implementation plan from AI</p>
+                  </div>
+                </div>
+                <button className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                  <IconCode size={16} />
+                  Generate Implementation Plan
+                </button>
+              </div>
+                </>
+              )}
+
+              {activeTab === 'score' && (
+                <div className="space-y-4">
+                  <div className="text-center mb-6">
+                    <div className={`inline-block px-4 py-2 rounded-full text-2xl font-bold ${getScoreColor(selectedItemModal.score)}`}>
+                      {selectedItemModal.score}/100
+                    </div>
+                    <p className="text-gray-600 mt-2">Overall Opportunity Score</p>
+                  </div>
+
+                  {/* Score Components */}
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-900">Market Pain Evidence (30%)</span>
+                        <span className="text-sm text-gray-600">25/30</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-green-600 h-2 rounded-full" style={{ width: '83%' }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-900">Market Size & Demand (25%)</span>
+                        <span className="text-sm text-gray-600">20/25</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: '80%' }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-900">Competition Analysis (20%)</span>
+                        <span className="text-sm text-gray-600">15/20</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '75%' }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-900">Solution Fit (15%)</span>
+                        <span className="text-sm text-gray-600">12/15</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-purple-600 h-2 rounded-full" style={{ width: '80%' }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-900">Execution Feasibility (10%)</span>
+                        <span className="text-sm text-gray-600">8/10</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-orange-600 h-2 rounded-full" style={{ width: '80%' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
             <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
               <button
-                onClick={() => setShowScoreBreakdown(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                View Score Breakdown
-              </button>
-              <button
-                onClick={() => setSelectedItemModal(null)}
+                onClick={() => {
+                  setSelectedItemModal(null);
+                  setActiveTab('details');
+                }}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
               >
                 Close
@@ -399,93 +511,6 @@ export default function DataTable({
         </div>
       )}
 
-      {/* Score Breakdown Modal */}
-      {showScoreBreakdown && selectedItemModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-900">Score Breakdown</h3>
-              <button
-                onClick={() => setShowScoreBreakdown(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <IconX size={24} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div className="text-center mb-6">
-                <div className={`inline-block px-4 py-2 rounded-full text-2xl font-bold ${getScoreColor(selectedItemModal.score)}`}>
-                  {selectedItemModal.score}/100
-                </div>
-                <p className="text-gray-600 mt-2">Overall Opportunity Score</p>
-              </div>
-
-              {/* Score Components */}
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-900">Market Pain Evidence (30%)</span>
-                    <span className="text-sm text-gray-600">25/30</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-600 h-2 rounded-full" style={{ width: '83%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-900">Market Size & Demand (25%)</span>
-                    <span className="text-sm text-gray-600">20/25</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: '80%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-900">Competition Analysis (20%)</span>
-                    <span className="text-sm text-gray-600">15/20</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '75%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-900">Solution Fit (15%)</span>
-                    <span className="text-sm text-gray-600">12/15</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-purple-600 h-2 rounded-full" style={{ width: '80%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-900">Execution Feasibility (10%)</span>
-                    <span className="text-sm text-gray-600">8/10</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-orange-600 h-2 rounded-full" style={{ width: '80%' }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end p-6 border-t border-gray-200">
-              <button
-                onClick={() => setShowScoreBreakdown(false)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
