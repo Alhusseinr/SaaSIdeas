@@ -312,41 +312,7 @@ async function updateJobStatus(jobId: string, updates: Partial<EnrichJob>): Prom
 }
 
 // Fallback heuristics for when OpenAI is not available
-function fallbackHeuristics(text: string) {
-  const low = text.toLowerCase();
-  const complaintTerms = [
-    "annoying", "frustrat", "i hate", "wish there was", "why is it so hard",
-    "broken", "useless", "terrible", "buggy", "hate", "sucks", "pain",
-    "doesn't work", "so slow", "awful", "worst", "horrible"
-  ];
-  
-  const match = complaintTerms.some(t => low.includes(t));
-  
-  const negativeWords = ["hate", "annoying", "terrible", "useless", "broken", "bad", "worst", "pain", "sucks", "awful"];
-  const positiveWords = ["love", "great", "awesome", "amazing", "fantastic", "excellent", "perfect"];
-  
-  const negCount = negativeWords.filter(w => low.includes(w)).length;
-  const posCount = positiveWords.filter(w => low.includes(w)).length;
-  
-  const score = Math.max(-1, Math.min(1, (posCount - negCount) / 3));
-  const label = score > 0.2 ? "positive" : score < -0.2 ? "negative" : "neutral";
-  
-  // Extract keywords - remove common words and get meaningful terms
-  const commonWords = new Set(["the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "man", "new", "now", "old", "see", "two", "way", "who", "boy", "did", "its", "let", "put", "say", "she", "too", "use"]);
-  
-  const keywords = Array.from(new Set(
-    low.replace(/[^a-z0-9\s]/g, " ")
-      .split(/\s+/)
-      .filter(x => x.length > 3 && !commonWords.has(x))
-  )).slice(0, 8);
-  
-  return {
-    sentiment_label: label,
-    sentiment_score: score,
-    is_complaint: match || score < -0.3,
-    keywords
-  };
-}
+// Removed fallback heuristics - AI-only approach for consistency
 
 // Smart text chunking for better OpenAI processing
 function cleanForEmbedding(text: string): string {
@@ -809,7 +775,7 @@ async function callOpenAIWithRetry(body: any): Promise<any> {
 async function classifyText(text: string): Promise<any> {
   if (!OPENAI_API_KEY) {
     console.warn("No OPENAI_API_KEY — using fallback heuristics");
-    return fallbackHeuristics(text);
+    return null;
   }
   
   // Use fallback if circuit breaker is open or fallback mode is enabled
@@ -821,7 +787,7 @@ async function classifyText(text: string): Promise<any> {
       failureRate: reliabilityState.totalRequests > 0 ? 
         (reliabilityState.failedRequests / reliabilityState.totalRequests * 100).toFixed(1) + '%' : '0%'
     });
-    return fallbackHeuristics(text);
+    return null;
   }
   
   // Clean and chunk text intelligently
@@ -839,7 +805,7 @@ async function classifyText(text: string): Promise<any> {
         console.warn("Chunk classification failed:", error);
         // If OpenAI fails, fall back to heuristics for this chunk
         if (error.message.includes("Circuit breaker") || error.message.includes("rate limit")) {
-          const fallbackResult = fallbackHeuristics(chunk);
+          const fallbackResult = null;
           if (fallbackResult) results.push(fallbackResult);
         }
       }
@@ -847,7 +813,7 @@ async function classifyText(text: string): Promise<any> {
     }
     
     if (results.length === 0) {
-      return fallbackHeuristics(text);
+      return null;
     }
     
     // Combine results from multiple chunks
@@ -860,13 +826,13 @@ async function classifyText(text: string): Promise<any> {
 async function classifySingleChunk(text: string): Promise<any> {
   if (!text || text.trim().length === 0) {
     console.warn("Empty text provided for classification");
-    return fallbackHeuristics(text);
+    return null;
   }
 
   // If no OpenAI key, use fallback immediately
   if (!OPENAI_API_KEY) {
     console.log("No OpenAI API key, using fallback heuristics");
-    return fallbackHeuristics(text);
+    return null;
   }
 
   const systemPrompt = `You are a JSON-only classifier for social media posts. Return strictly valid JSON with these keys:
@@ -891,7 +857,7 @@ async function classifySingleChunk(text: string): Promise<any> {
     
     if (!response?.choices?.[0]?.message?.content) {
       console.error("Empty response from OpenAI API");
-      return fallbackHeuristics(text);
+      return null;
     }
     
     const content = response.choices[0].message.content;
@@ -904,7 +870,7 @@ async function classifySingleChunk(text: string): Promise<any> {
         typeof parsed.is_complaint !== 'boolean' ||
         !Array.isArray(parsed.keywords)) {
       console.warn("Invalid OpenAI response structure, using fallback");
-      return fallbackHeuristics(text);
+      return null;
     }
     
     return parsed;
@@ -921,7 +887,7 @@ async function classifySingleChunk(text: string): Promise<any> {
     }
     
     // For other errors, use fallback heuristics
-    return fallbackHeuristics(text);
+    return null;
   }
 }
 

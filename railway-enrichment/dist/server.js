@@ -23,21 +23,25 @@ const OPENAI_TIMEOUT_MS = 60000;
 const MAX_RETRIES = 3;
 const TURBO_BATCH_SIZE = 100;
 const TURBO_CONCURRENT_REQUESTS = 15;
-const EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_MODEL = "text-embedding-3-large";
+const EXPECTED_EMBED_DIM = 1536;
+const EMBEDDING_DIMENSIONS = 1536;
 const EMBED_CHAR_LIMIT = 8000;
 const supabase = (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const POSTS_PER_BATCH = 1;
+const INTER_POST_DELAY = 1000;
 const LISTENER_ENABLED = process.env.ENABLE_LISTENER !== "false";
-const LISTENER_INTERVAL_MS = 30000;
-const MIN_POSTS_TO_PROCESS = 10;
-const LISTENER_BATCH_SIZE = TURBO_BATCH_SIZE;
-const LISTENER_CONCURRENCY = TURBO_CONCURRENT_REQUESTS;
+const LISTENER_INTERVAL_MS = 60000;
+const MIN_POSTS_TO_PROCESS = 5;
+const LISTENER_BATCH_SIZE = 20;
+const LISTENER_CONCURRENCY = MAX_CONCURRENT_REQUESTS;
 let isListenerRunning = false;
 let isProcessing = false;
 let listenerStats = {
     totalProcessed: 0,
     lastRunTime: null,
     consecutiveErrors: 0,
-    status: 'stopped'
+    status: "stopped",
 };
 async function updateJobStatus(jobId, updates) {
     try {
@@ -53,32 +57,102 @@ async function updateJobStatus(jobId, updates) {
     }
 }
 function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
-function fallbackHeuristics(text) {
-    const low = text.toLowerCase();
-    const complaintTerms = [
-        "annoying", "frustrat", "i hate", "wish there was", "why is it so hard",
-        "broken", "useless", "terrible", "buggy", "hate", "sucks", "pain",
-        "doesn't work", "so slow", "awful", "worst", "horrible"
-    ];
-    const match = complaintTerms.some(t => low.includes(t));
-    const negativeWords = ["hate", "annoying", "terrible", "useless", "broken", "bad", "worst", "pain", "sucks", "awful"];
-    const positiveWords = ["love", "great", "awesome", "amazing", "fantastic", "excellent", "perfect"];
-    const negCount = negativeWords.filter(w => low.includes(w)).length;
-    const posCount = positiveWords.filter(w => low.includes(w)).length;
-    const score = Math.max(-1, Math.min(1, (posCount - negCount) / 3));
-    const label = score > 0.2 ? "positive" : score < -0.2 ? "negative" : "neutral";
-    const commonWords = new Set(["the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "man", "new", "now", "old", "see", "two", "way", "who", "boy", "did", "its", "let", "put", "say", "she", "too", "use"]);
-    const keywords = Array.from(new Set(low.replace(/[^a-z0-9\s]/g, " ")
-        .split(/\s+/)
-        .filter(x => x.length > 3 && !commonWords.has(x)))).slice(0, 8);
-    return {
-        sentiment_score: score,
-        sentiment_label: label,
-        is_complaint: match || score < -0.3,
-        keywords
-    };
+async function analyzeSinglePost(post) {
+    if (!OPENAI_API_KEY) {
+        throw new Error("OpenAI API key required for sentiment analysis");
+    }
+    const content = `${post.title || ""} ${post.body || ""}`.trim();
+    if (!content) {
+        throw new Error("Post has no content to analyze");
+    }
+    const maxContentLength = 8000;
+    let analysisContent = content;
+    if (content.length > maxContentLength) {
+        const title = post.title || "";
+        const bodyLimit = maxContentLength - title.length - 100;
+        const truncatedBody = (post.body || "").slice(0, bodyLimit);
+        const lastSentence = truncatedBody.lastIndexOf('. ');
+        if (lastSentence > bodyLimit * 0.8) {
+            analysisContent = `${title} ${truncatedBody.slice(0, lastSentence + 1)}`;
+        }
+        else {
+            analysisContent = `${title} ${truncatedBody}...`;
+        }
+    }
+    const analysisPrompt = `Analyze this ${post.platform || 'social media'} post for SaaS business opportunity signals. Focus on pain points, workflow frustrations, and unmet software needs.
+
+Platform: ${post.platform || 'Unknown'}
+Post: ${analysisContent}
+
+Analyze for:
+1. SENTIMENT: Overall emotional tone (-1 to 1)
+2. COMPLAINT: Is this expressing frustration with current tools/processes?
+3. KEYWORDS: Extract SaaS-relevant terms (tools, software, workflows, pain points)
+
+Consider these SaaS opportunity indicators:
+- Manual process frustrations
+- Tool limitations or missing features  
+- Workflow inefficiencies
+- Integration problems
+- Pricing/feature complaints
+- "I wish there was a tool that..."
+
+Platform-specific context:
+- Reddit: Look for detailed problem descriptions, community discussions about tools
+- Twitter: Brief complaints, quick pain points, tool mentions
+- Other platforms: Adapt analysis to typical communication patterns
+
+Return ONLY valid JSON:
+{
+  "sentiment": 0.1,
+  "sentiment_label": "frustrated|satisfied|neutral|excited", 
+  "is_complaint": false,
+  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "saas_opportunity_score": 0.7,
+  "pain_points": ["specific pain point 1", "pain point 2"]
+}`;
+    try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: "gpt-4o-mini",
+                response_format: { type: "json_object" },
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a SaaS business opportunity analyst. Identify pain points, tool frustrations, and unmet software needs in social media posts from various platforms (Reddit, Twitter, etc.). Adapt your analysis based on the platform context and communication style. Return valid JSON with sentiment between -1 and 1, saas_opportunity_score between 0 and 1."
+                    },
+                    {
+                        role: "user",
+                        content: analysisPrompt
+                    }
+                ],
+                temperature: 0.3,
+                max_tokens: 200
+            }),
+            signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS)
+        });
+        if (!response.ok) {
+            throw new Error(`OpenAI failed: ${response.status}`);
+        }
+        const result = await response.json();
+        const analysisContent = result.choices[0]?.message?.content;
+        if (!analysisContent) {
+            throw new Error("Empty response from OpenAI");
+        }
+        console.log(`Analysis for post ${post.id}:`, analysisContent);
+        return JSON.parse(analysisContent);
+    }
+    catch (error) {
+        console.error(`Analysis failed for post ${post.id}:`, error.message);
+        throw error;
+    }
 }
 function cleanForEmbedding(text) {
     return text
@@ -122,18 +196,17 @@ function meanVectors(vectors) {
 }
 async function analyzeWithOpenAI(posts) {
     if (!OPENAI_API_KEY) {
-        console.warn("No OPENAI_API_KEY — using fallback heuristics");
-        return posts.map(post => {
-            const text = `${post.title || ""}\n${post.body || ""}`.trim();
-            return fallbackHeuristics(text);
-        });
+        console.error("No OPENAI_API_KEY — cannot perform AI analysis");
+        throw new Error("OpenAI API key required for sentiment analysis");
     }
     const maxPostsForAnalysis = Math.min(posts.length, 20);
     const postsToAnalyze = posts.slice(0, maxPostsForAnalysis);
     const analysisPrompt = `Analyze these ${postsToAnalyze.length} posts for sentiment, complaint detection, and keywords. Return ONLY a valid JSON object with a "results" array.
 
 Posts:
-${postsToAnalyze.map((post, i) => `${i + 1}. ${(post.title || "") + " " + (post.body || "")}`.slice(0, 300)).join('\n\n')}
+${postsToAnalyze
+        .map((post, i) => `${i + 1}. ${(post.title || "") + " " + (post.body || "")}`.slice(0, 300))
+        .join("\n\n")}
 
 Return exactly this format:
 {
@@ -146,19 +219,22 @@ Return exactly this format:
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
                 model: "gpt-4o-mini",
                 response_format: { type: "json_object" },
-                messages: [{
+                messages: [
+                    {
                         role: "system",
-                        content: "You are a precise JSON analyzer. Always return valid JSON with complete numeric values. Never truncate numbers."
-                    }, {
+                        content: "You are a precise JSON analyzer. Always return valid JSON with complete numeric values. Never truncate numbers.",
+                    },
+                    {
                         role: "user",
-                        content: analysisPrompt
-                    }],
+                        content: analysisPrompt,
+                    },
+                ],
                 temperature: 0,
                 max_tokens: 4000,
             }),
@@ -180,8 +256,8 @@ Return exactly this format:
                         allResults.push(results[i]);
                     }
                     else {
-                        const text = `${posts[i].title || ""}\n${posts[i].body || ""}`.trim();
-                        allResults.push(fallbackHeuristics(text));
+                        console.warn(`Post ${posts[i].id} could not be analyzed by OpenAI`);
+                        allResults.push(null);
                     }
                 }
                 return allResults;
@@ -196,13 +272,11 @@ Return exactly this format:
     }
     catch (error) {
         console.error("OpenAI analysis failed, using fallback heuristics:", error.message);
-        return posts.map(post => {
-            const text = `${post.title || ""}\n${post.body || ""}`.trim();
-            return fallbackHeuristics(text);
-        });
+        console.error("OpenAI analysis failed completely");
+        throw new Error("AI sentiment analysis unavailable");
     }
 }
-async function generateEmbeddings(posts) {
+async function generateEmbeddings_DEPRECATED(posts) {
     if (!OPENAI_API_KEY) {
         console.warn("No OPENAI_API_KEY — returning default embeddings");
         return posts.map(() => new Array(1536).fill(0.001));
@@ -226,19 +300,21 @@ async function generateEmbeddings(posts) {
                         const response = await fetch("https://api.openai.com/v1/embeddings", {
                             method: "POST",
                             headers: {
-                                "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                                Authorization: `Bearer ${OPENAI_API_KEY}`,
                                 "Content-Type": "application/json",
                             },
                             body: JSON.stringify({
                                 model: EMBEDDING_MODEL,
                                 input: chunks[i],
+                                dimensions: EMBEDDING_DIMENSIONS,
                             }),
                             signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
                         });
                         if (!response.ok) {
                             const errorText = await response.text();
                             lastError = new Error(`OpenAI Embedding ${response.status}: ${errorText.slice(0, 200)}`);
-                            if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+                            if (response.status === 429 ||
+                                (response.status >= 500 && response.status < 600)) {
                                 console.warn(`Embedding attempt ${attempt}/${MAX_RETRIES} failed for post ${post.id} chunk ${i + 1}: ${response.status} - retrying...`);
                                 await sleep(1000 * attempt * attempt);
                                 continue;
@@ -284,45 +360,93 @@ async function generateEmbeddings(posts) {
     console.log(`Generated ${allEmbeddings.length} embeddings for ${posts.length} posts`);
     return allEmbeddings;
 }
-async function processBatch(posts, batchIndex) {
-    console.log(`Processing batch ${batchIndex + 1} with ${posts.length} posts`);
+async function generateSingleEmbedding(post) {
+    if (!OPENAI_API_KEY) {
+        throw new Error("OpenAI API key required for embeddings");
+    }
     try {
-        const [analysisResults, embeddings] = await Promise.all([
-            analyzeWithOpenAI(posts),
-            generateEmbeddings(posts)
-        ]);
-        const results = posts.map((post, i) => {
-            const analysis = analysisResults[i] || {};
-            return {
-                post_id: post.id,
-                sentiment: analysis.sentiment || analysis.sentiment_score || 0,
-                sentiment_label: analysis.sentiment_label || (analysis.sentiment > 0.2 ? "positive" : analysis.sentiment < -0.2 ? "negative" : "neutral"),
-                is_complaint: analysis.is_complaint || false,
-                keywords: analysis.keywords || [],
-                embedding: embeddings[i] || [],
-                confidence: 0.8
-            };
+        const fullText = `${post.title || ""}\n${post.body || ""}`.trim();
+        if (!fullText) {
+            throw new Error("Post has no content for embedding");
+        }
+        const cleaned = cleanForEmbedding(fullText);
+        const truncated = cleaned.slice(0, EMBED_CHAR_LIMIT);
+        const response = await fetch("https://api.openai.com/v1/embeddings", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: EMBEDDING_MODEL,
+                input: truncated,
+                dimensions: EMBEDDING_DIMENSIONS,
+            }),
+            signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
         });
-        console.log(`Batch ${batchIndex + 1} completed: ${results.length} posts enriched`);
-        return results;
+        if (!response.ok) {
+            throw new Error(`OpenAI embedding failed: ${response.status}`);
+        }
+        const data = await response.json();
+        const vector = data?.data?.[0]?.embedding;
+        if (Array.isArray(vector) && vector.length === EXPECTED_EMBED_DIM) {
+            return vector;
+        }
+        else {
+            throw new Error(`Invalid embedding dimensions: got ${vector?.length}, expected ${EXPECTED_EMBED_DIM}`);
+        }
     }
     catch (error) {
-        console.error(`Batch ${batchIndex + 1} failed:`, error);
-        const defaultEmbedding = new Array(1536).fill(0.001);
-        return posts.map(post => {
-            const text = `${post.title || ""}\n${post.body || ""}`.trim();
-            const fallback = fallbackHeuristics(text);
-            return {
-                post_id: post.id,
-                sentiment: fallback.sentiment_score,
-                sentiment_label: fallback.sentiment_label,
-                is_complaint: fallback.is_complaint,
-                keywords: fallback.keywords,
-                embedding: defaultEmbedding,
-                confidence: 0.1
-            };
-        });
+        console.error(`Embedding failed for post ${post.id}:`, error.message);
+        throw error;
     }
+}
+async function processSinglePost(post) {
+    console.log(`Processing post ${post.id}`);
+    try {
+        const [analysis, embedding] = await Promise.all([
+            analyzeSinglePost(post),
+            generateSingleEmbedding(post)
+        ]);
+        const result = {
+            post_id: post.id,
+            sentiment: analysis.sentiment || 0,
+            sentiment_label: analysis.sentiment_label || "neutral",
+            is_complaint: analysis.is_complaint || false,
+            keywords: analysis.keywords || [],
+            embedding: embedding || [],
+            confidence: 0.9,
+            saas_score: analysis.saas_opportunity_score || 0,
+            pain_points: analysis.pain_points || []
+        };
+        console.log(`✅ Post ${post.id} enriched successfully`);
+        return result;
+    }
+    catch (error) {
+        console.error(`❌ Post ${post.id} failed:`, error.message);
+        return null;
+    }
+}
+async function processSinglePostBatch(posts, batchIndex) {
+    console.log(`Starting batch ${batchIndex} with ${posts.length} posts`);
+    const results = [];
+    for (let i = 0; i < posts.length; i++) {
+        const post = posts[i];
+        try {
+            const result = await processSinglePost(post);
+            if (result) {
+                results.push(result);
+            }
+            if (i < posts.length - 1) {
+                await sleep(INTER_POST_DELAY);
+            }
+        }
+        catch (error) {
+            console.error(`Batch ${batchIndex}, post ${i} failed:`, error.message);
+        }
+    }
+    console.log(`✅ Batch ${batchIndex} completed: ${results.length}/${posts.length} posts successful`);
+    return results;
 }
 async function saveEnrichmentResults(results) {
     if (results.length === 0)
@@ -346,13 +470,15 @@ async function saveEnrichmentResults(results) {
                 is_complaint: result.is_complaint,
                 keywords: result.keywords,
                 embedding: result.embedding,
+                pain_points: result.pain_points,
+                saas_score: result.saas_score,
                 enriched_at: new Date().toISOString(),
-                enrich_status: "completed"
+                enrich_status: "completed",
             })
                 .eq("id", result.post_id);
             if (error) {
                 console.error(`Failed to update post ${result.post_id}:`, error);
-                if (error.message.includes('vector must have at least 1 dimension')) {
+                if (error.message.includes("vector must have at least 1 dimension")) {
                     console.warn(`Skipping post ${result.post_id} due to embedding dimension error`);
                     skipped++;
                 }
@@ -371,10 +497,11 @@ async function checkForUnenrichedPosts() {
     try {
         const { count, error } = await supabase
             .from("posts")
-            .select("*", { count: 'exact', head: true })
-            .or("enriched_at.is.null,sentiment.is.null,embedding.is.null,keywords.is.null");
+            .select("*", { count: "exact", head: true })
+            .or("enrich_status.is.null,enrich_status.eq.pending");
         if (error) {
             console.error("Error counting unenriched posts:", error);
+            console.error("Error details:", JSON.stringify(error, null, 2));
             return 0;
         }
         return count || 0;
@@ -403,7 +530,7 @@ async function runContinuousEnrichment() {
         const { data: posts, error } = await supabase
             .from("posts")
             .select("id, title, body, platform, created_at")
-            .or("enriched_at.is.null,sentiment.is.null,embedding.is.null,keywords.is.null")
+            .or("enrich_status.is.null,enrich_status.eq.pending")
             .order("created_at", { ascending: false })
             .limit(LISTENER_BATCH_SIZE * LISTENER_CONCURRENCY);
         if (error) {
@@ -414,26 +541,34 @@ async function runContinuousEnrichment() {
             return;
         }
         console.log(`⚡ TURBO: Processing ${posts.length} posts with MAXIMUM concurrency...`);
-        const batches = [];
-        for (let i = 0; i < posts.length; i += LISTENER_BATCH_SIZE) {
-            batches.push(posts.slice(i, i + LISTENER_BATCH_SIZE));
+        console.log(`🔥 Processing ${posts.length} posts one by one with controlled concurrency`);
+        const allResults = [];
+        for (let i = 0; i < posts.length; i += MAX_CONCURRENT_REQUESTS) {
+            const batch = posts.slice(i, i + MAX_CONCURRENT_REQUESTS);
+            console.log(`Processing posts ${i + 1}-${Math.min(i + MAX_CONCURRENT_REQUESTS, posts.length)} of ${posts.length}`);
+            const batchPromises = batch.map(post => processSinglePost(post));
+            const batchResults = await Promise.all(batchPromises);
+            const successfulResults = batchResults.filter(result => result !== null);
+            allResults.push(...successfulResults);
+            console.log(`✅ Batch completed: ${successfulResults.length}/${batch.length} posts successful`);
+            if (i + MAX_CONCURRENT_REQUESTS < posts.length) {
+                console.log(`Waiting ${INTER_POST_DELAY}ms before next batch...`);
+                await sleep(INTER_POST_DELAY);
+            }
         }
-        console.log(`🔥 Processing ${batches.length} batches with ${LISTENER_CONCURRENCY} concurrent workers`);
-        const batchResults = await Promise.all(batches.map((batch, index) => processBatch(batch, index)));
-        const allResults = batchResults.flat();
         await saveEnrichmentResults(allResults);
         const duration = Date.now() - startTime;
         const processed = allResults.length;
         listenerStats.totalProcessed += processed;
         listenerStats.lastRunTime = new Date();
         listenerStats.consecutiveErrors = 0;
-        listenerStats.status = 'running';
+        listenerStats.status = "running";
         console.log(`✅ TURBO LISTENER: Processed ${processed} posts in ${duration}ms (${Math.round(processed / (duration / 1000))} posts/sec)`);
         console.log(`📈 Total processed by listener: ${listenerStats.totalProcessed}`);
     }
     catch (error) {
         listenerStats.consecutiveErrors++;
-        listenerStats.status = 'error';
+        listenerStats.status = "error";
         console.error(`❌ TURBO LISTENER ERROR:`, error.message);
         if (listenerStats.consecutiveErrors >= 3) {
             console.warn(`⚠️  ${listenerStats.consecutiveErrors} consecutive errors, adding delay...`);
@@ -455,7 +590,7 @@ function startContinuousListener() {
     }
     console.log(`🚀 Starting TURBO enrichment listener (interval: ${LISTENER_INTERVAL_MS / 1000}s, min posts: ${MIN_POSTS_TO_PROCESS})`);
     isListenerRunning = true;
-    listenerStats.status = 'running';
+    listenerStats.status = "running";
     runContinuousEnrichment();
     setInterval(async () => {
         if (isListenerRunning) {
@@ -466,7 +601,7 @@ function startContinuousListener() {
 function stopContinuousListener() {
     console.log("🛑 Stopping continuous enrichment listener");
     isListenerRunning = false;
-    listenerStats.status = 'stopped';
+    listenerStats.status = "stopped";
 }
 app.get("/", (_req, res) => {
     res.json({
@@ -481,7 +616,7 @@ app.get("/", (_req, res) => {
             "Optimized for 99k posts",
             "Parallel analysis and embeddings",
             "Concurrent batch processing",
-            "Turbo mode available"
+            "Turbo mode available",
         ],
         performance: {
             max_posts_per_run: MAX_POSTS_PER_RUN,
@@ -489,9 +624,9 @@ app.get("/", (_req, res) => {
             concurrent_requests: MAX_CONCURRENT_REQUESTS,
             turbo_mode: {
                 batch_size: TURBO_BATCH_SIZE,
-                concurrent_requests: TURBO_CONCURRENT_REQUESTS
+                concurrent_requests: TURBO_CONCURRENT_REQUESTS,
             },
-            estimated_time_99k: "~10 runs at 10k posts each = ~30-60 minutes total"
+            estimated_time_99k: "~10 runs at 10k posts each = ~30-60 minutes total",
         },
         endpoints: {
             health: "/health",
@@ -499,7 +634,7 @@ app.get("/", (_req, res) => {
             turbo: "/enrich-posts-turbo",
             listener_start: "/listener/start",
             listener_stop: "/listener/stop",
-            listener_status: "/listener/status"
+            listener_status: "/listener/status",
         },
         listener: {
             enabled: LISTENER_ENABLED,
@@ -507,8 +642,8 @@ app.get("/", (_req, res) => {
             interval_seconds: LISTENER_INTERVAL_MS / 1000,
             total_processed: listenerStats.totalProcessed,
             last_run: listenerStats.lastRunTime,
-            consecutive_errors: listenerStats.consecutiveErrors
-        }
+            consecutive_errors: listenerStats.consecutiveErrors,
+        },
     });
 });
 app.get("/health", (_req, res) => {
@@ -522,12 +657,12 @@ app.get("/health", (_req, res) => {
 app.post("/enrich-posts", async (req, res) => {
     const startTime = Date.now();
     try {
-        const { job_id = `enrich_${Date.now()}`, limit = MAX_POSTS_PER_RUN, batch_size = AGGRESSIVE_BATCH_SIZE, concurrent_requests = MAX_CONCURRENT_REQUESTS } = req.body;
+        const { job_id = `enrich_${Date.now()}`, limit = MAX_POSTS_PER_RUN, batch_size = AGGRESSIVE_BATCH_SIZE, concurrent_requests = MAX_CONCURRENT_REQUESTS, } = req.body;
         console.log(`Starting high-performance enrichment: ${limit} posts, ${batch_size} batch size, ${concurrent_requests} concurrent`);
         const { data: posts, error: fetchError } = await supabase
             .from("posts")
             .select("id, title, body, platform, created_at")
-            .is("embedding", null)
+            .or("enrich_status.is.null,enrich_status.eq.pending")
             .order("created_at", { ascending: false })
             .limit(limit);
         if (fetchError || !posts) {
@@ -539,7 +674,7 @@ app.post("/enrich-posts", async (req, res) => {
                 success: true,
                 message: "No posts need enrichment",
                 posts_processed: 0,
-                duration_ms: Date.now() - startTime
+                duration_ms: Date.now() - startTime,
             });
             return;
         }
@@ -553,9 +688,10 @@ app.post("/enrich-posts", async (req, res) => {
         const batchPromises = [];
         for (let i = 0; i < batches.length; i += concurrent_requests) {
             const batchGroup = batches.slice(i, i + concurrent_requests);
-            const groupPromises = batchGroup.map((batch, groupIndex) => processBatch(batch, i + groupIndex));
+            const groupPromises = batchGroup.map((batch, groupIndex) => processSinglePostBatch(batch, i + groupIndex));
             batchPromises.push(...groupPromises);
-            if (batchPromises.length >= concurrent_requests || i + concurrent_requests >= batches.length) {
+            if (batchPromises.length >= concurrent_requests ||
+                i + concurrent_requests >= batches.length) {
                 console.log(`⚡ Processing ${batchPromises.length} batches concurrently...`);
                 const groupResults = await Promise.all(batchPromises);
                 const flatResults = groupResults.flat();
@@ -574,7 +710,7 @@ app.post("/enrich-posts", async (req, res) => {
             message: `Successfully enriched ${allResults.length} posts`,
             job_id,
             posts_processed: allResults.length,
-            posts_enriched: allResults.filter(r => r.embedding.length > 0).length,
+            posts_enriched: allResults.filter((r) => r.embedding.length > 0).length,
             batches_processed: batches.length,
             duration_ms: duration,
             duration_readable: `${Math.round(duration / 1000)}s`,
@@ -591,9 +727,9 @@ app.post("/enrich-posts", async (req, res) => {
                     "High concurrency",
                     "Parallel API calls",
                     "Immediate saves",
-                    "Minimal delays"
-                ]
-            }
+                    "Minimal delays",
+                ],
+            },
         });
     }
     catch (error) {
@@ -606,8 +742,8 @@ app.post("/enrich-posts", async (req, res) => {
             platform_info: {
                 name: "railway",
                 service: "high-performance-enrichment",
-                version: "1.0.0"
-            }
+                version: "1.0.0",
+            },
         });
     }
 });
@@ -619,7 +755,7 @@ app.post("/enrich-posts-turbo", async (req, res) => {
         const { data: posts, error: fetchError } = await supabase
             .from("posts")
             .select("id, title, body, platform, created_at")
-            .is("embedding", null)
+            .or("enrich_status.is.null,enrich_status.eq.pending")
             .order("created_at", { ascending: false })
             .limit(limit);
         if (fetchError || !posts) {
@@ -631,7 +767,7 @@ app.post("/enrich-posts-turbo", async (req, res) => {
                 message: "No posts need enrichment",
                 posts_processed: 0,
                 duration_ms: Date.now() - startTime,
-                mode: "turbo"
+                mode: "turbo",
             });
             return;
         }
@@ -644,9 +780,10 @@ app.post("/enrich-posts-turbo", async (req, res) => {
         const batchPromises = [];
         for (let i = 0; i < batches.length; i += TURBO_CONCURRENT_REQUESTS) {
             const batchGroup = batches.slice(i, i + TURBO_CONCURRENT_REQUESTS);
-            const groupPromises = batchGroup.map((batch, groupIndex) => processBatch(batch, i + groupIndex));
+            const groupPromises = batchGroup.map((batch, groupIndex) => processSinglePostBatch(batch, i + groupIndex));
             batchPromises.push(...groupPromises);
-            if (batchPromises.length >= TURBO_CONCURRENT_REQUESTS || i + TURBO_CONCURRENT_REQUESTS >= batches.length) {
+            if (batchPromises.length >= TURBO_CONCURRENT_REQUESTS ||
+                i + TURBO_CONCURRENT_REQUESTS >= batches.length) {
                 console.log(`⚡ TURBO: Processing ${batchPromises.length} batches with MAXIMUM concurrency...`);
                 const groupResults = await Promise.all(batchPromises);
                 const flatResults = groupResults.flat();
@@ -665,14 +802,14 @@ app.post("/enrich-posts-turbo", async (req, res) => {
             message: `🔥 TURBO MODE: Successfully enriched ${allResults.length} posts`,
             job_id,
             posts_processed: allResults.length,
-            posts_enriched: allResults.filter(r => r.embedding.length > 0).length,
+            posts_enriched: allResults.filter((r) => r.embedding.length > 0).length,
             batches_processed: batches.length,
             duration_ms: duration,
             duration_readable: `${Math.round(duration / 1000)}s`,
             performance: {
                 posts_per_second: Math.round(allResults.length / (duration / 1000)),
                 avg_batch_time: Math.round(duration / batches.length),
-                mode: "TURBO"
+                mode: "TURBO",
             },
             platform_info: {
                 name: "railway",
@@ -684,9 +821,9 @@ app.post("/enrich-posts-turbo", async (req, res) => {
                     "Maximum concurrency (30 parallel)",
                     "Parallel API calls",
                     "Immediate saves",
-                    "Minimal delays (25ms)"
-                ]
-            }
+                    "Minimal delays (25ms)",
+                ],
+            },
         });
     }
     catch (error) {
@@ -700,8 +837,8 @@ app.post("/enrich-posts-turbo", async (req, res) => {
             platform_info: {
                 name: "railway",
                 service: "turbo-enrichment",
-                version: "1.0.0"
-            }
+                version: "1.0.0",
+            },
         });
     }
 });
@@ -715,14 +852,14 @@ app.post("/listener/start", (_req, res) => {
                 interval_seconds: LISTENER_INTERVAL_MS / 1000,
                 batch_size: LISTENER_BATCH_SIZE,
                 concurrency: LISTENER_CONCURRENCY,
-                min_posts: MIN_POSTS_TO_PROCESS
-            }
+                min_posts: MIN_POSTS_TO_PROCESS,
+            },
         });
     }
     catch (error) {
         res.status(500).json({
             error: "Failed to start listener",
-            message: error.message
+            message: error.message,
         });
     }
 });
@@ -731,13 +868,13 @@ app.post("/listener/stop", (_req, res) => {
         stopContinuousListener();
         res.json({
             message: "🛑 TURBO listener stopped successfully",
-            status: "stopped"
+            status: "stopped",
         });
     }
     catch (error) {
         res.status(500).json({
             error: "Failed to stop listener",
-            message: error.message
+            message: error.message,
         });
     }
 });
@@ -751,8 +888,8 @@ app.get("/listener/status", (_req, res) => {
             interval_seconds: LISTENER_INTERVAL_MS / 1000,
             batch_size: LISTENER_BATCH_SIZE,
             concurrency: LISTENER_CONCURRENCY,
-            min_posts_threshold: MIN_POSTS_TO_PROCESS
-        }
+            min_posts_threshold: MIN_POSTS_TO_PROCESS,
+        },
     });
 });
 app.listen(PORT, () => {

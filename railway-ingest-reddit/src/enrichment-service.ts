@@ -13,8 +13,8 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // OpenAI Configuration
 const CLASSIFIER_MODEL = "gpt-4o-mini";
-const EMBEDDING_MODEL = "text-embedding-3-small"; // Use small model for 1536 dimensions
-const EXPECTED_EMBED_DIM = 1536;
+const EMBEDDING_MODEL = "text-embedding-3-large"; // Use large model for 3072 dimensions
+const EXPECTED_EMBED_DIM = 3072;
 const MAX_RETRIES = 3;
 const TIMEOUT_MS = 30000;
 const EMBED_CHAR_LIMIT = 7000;

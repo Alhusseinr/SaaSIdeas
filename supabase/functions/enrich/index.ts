@@ -12,8 +12,9 @@ const LAST_UPDATED = "2025-01-14T22:30:00Z";
 
 // OpenAI Configuration
 const CLASSIFIER_MODEL = "gpt-4o-mini";
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const EXPECTED_EMBED_DIM = 1536;
+const EMBEDDING_MODEL = "text-embedding-3-large";
+const EXPECTED_EMBED_DIM = 1536; // Reduced dimensions for compatibility
+const EMBEDDING_DIMENSIONS = 1536;
 const MAX_RETRIES = 3;
 const TIMEOUT_MS = 30000; // 30s per OpenAI call
 const EMBED_CHAR_LIMIT = 6000;
@@ -32,41 +33,7 @@ function corsHeaders() {
   };
 }
 
-function fallbackHeuristics(text: string) {
-  const low = text.toLowerCase();
-  const complaintTerms = [
-    "annoying", "frustrat", "i hate", "wish there was", "why is it so hard",
-    "broken", "useless", "terrible", "buggy", "hate", "sucks", "pain",
-    "doesn't work", "so slow", "awful", "worst", "horrible"
-  ];
-  
-  const match = complaintTerms.some(t => low.includes(t));
-  
-  const negativeWords = ["hate", "annoying", "terrible", "useless", "broken", "bad", "worst", "pain", "sucks", "awful"];
-  const positiveWords = ["love", "great", "awesome", "amazing", "fantastic", "excellent", "perfect"];
-  
-  const negCount = negativeWords.filter(w => low.includes(w)).length;
-  const posCount = positiveWords.filter(w => low.includes(w)).length;
-  
-  const score = Math.max(-1, Math.min(1, (posCount - negCount) / 3));
-  const label = score > 0.2 ? "positive" : score < -0.2 ? "negative" : "neutral";
-  
-  // Extract keywords - remove common words and get meaningful terms
-  const commonWords = new Set(["the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "man", "new", "now", "old", "see", "two", "way", "who", "boy", "did", "its", "let", "put", "say", "she", "too", "use"]);
-  
-  const keywords = Array.from(new Set(
-    low.replace(/[^a-z0-9\s]/g, " ")
-      .split(/\s+/)
-      .filter(x => x.length > 3 && !commonWords.has(x))
-  )).slice(0, 8);
-  
-  return {
-    sentiment_label: label,
-    sentiment_score: score,
-    is_complaint: match || score < -0.3,
-    keywords
-  };
-}
+// Removed fallback heuristics - AI-only approach for consistency
 
 function cleanForEmbedding(text: string): string {
   return text
@@ -171,8 +138,8 @@ async function callOpenAIWithRetry(body: any): Promise<any> {
 
 async function classifyText(text: string): Promise<any> {
   if (!OPENAI_API_KEY) {
-    console.warn("No OPENAI_API_KEY — using fallback heuristics");
-    return fallbackHeuristics(text);
+    console.error("No OPENAI_API_KEY — cannot perform AI analysis");
+    throw new Error("OpenAI API key required for classification");
   }
   
   const systemPrompt = `You are a JSON-only classifier for social media posts. Return strictly valid JSON with these keys:
@@ -197,7 +164,7 @@ async function classifyText(text: string): Promise<any> {
     return JSON.parse(content);
   } catch (error) {
     console.error("Classification failed:", error);
-    return fallbackHeuristics(text);
+    throw error; // Don't use fallback - let it fail properly
   }
 }
 
@@ -225,7 +192,8 @@ async function embedText(text: string): Promise<number[] | null> {
           },
           body: JSON.stringify({
             input: chunks[i],
-            model: EMBEDDING_MODEL
+            model: EMBEDDING_MODEL,
+            dimensions: EMBEDDING_DIMENSIONS
           })
         }, TIMEOUT_MS);
         
