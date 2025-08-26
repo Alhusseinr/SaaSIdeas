@@ -525,6 +525,98 @@ async function clusterPostsBySimilarity(
   return clusters;
 }
 
+// Direct similarity-based grouping using pre-computed similarity scores
+async function organizeBySimilarityGroups(
+  posts: PostData[],
+  similarityThreshold: number,
+  minGroupSize: number
+): Promise<PostCluster[]> {
+  console.log(`Organizing ${posts.length} posts by similarity groups (no clustering needed)`);
+  console.log(`Using similarity threshold: ${similarityThreshold}, min group size: ${minGroupSize}`);
+
+  if (posts.length < minGroupSize) {
+    console.log(`Not enough posts for similarity groups`);
+    return [];
+  }
+
+  // Get posts with their similarity scores from database
+  const postIds = posts.map(p => p.id);
+  const { data: postsWithSimilarity, error } = await supabase
+    .from("posts")
+    .select("id, title, body, sentiment, url, created_at, platform, embedding, is_complaint, saas_score, pain_points, similarity_scores")
+    .in("id", postIds)
+    .not("similarity_scores", "is", null)
+    .not("similarity_scores", "eq", "[]");
+
+  if (error || !postsWithSimilarity) {
+    console.error("Failed to fetch posts with similarity scores:", error);
+    return [];
+  }
+
+  console.log(`Found ${postsWithSimilarity.length} posts with pre-computed similarity scores`);
+
+  // Sort posts by similarity group size (largest first) - size-based priority
+  const sortedPosts = postsWithSimilarity.sort((a, b) => {
+    const aCount = (a.similarity_scores || []).filter((s: any) => s.score >= similarityThreshold).length;
+    const bCount = (b.similarity_scores || []).filter((s: any) => s.score >= similarityThreshold).length;
+    return bCount - aCount;
+  });
+
+  const usedPosts = new Set<number>();
+  const similarityGroups: PostCluster[] = [];
+
+  // Process posts by size-based priority
+  for (const rootPost of sortedPosts) {
+    if (usedPosts.has(rootPost.id)) continue;
+
+    // Get similar posts above threshold that haven't been used
+    const similarPostIds = (rootPost.similarity_scores || [])
+      .filter((s: any) => s.score >= similarityThreshold && !usedPosts.has(s.post_id))
+      .map((s: any) => s.post_id);
+
+    // Only create group if we have enough unused similar posts
+    if (similarPostIds.length >= minGroupSize - 1) { // -1 because we include the root post
+      
+      // Fetch the similar posts data
+      const { data: similarPosts } = await supabase
+        .from("posts")
+        .select("id, title, body, sentiment, url, created_at, platform, embedding, is_complaint, saas_score, pain_points")
+        .in("id", similarPostIds);
+
+      const allPostsInGroup = [rootPost, ...(similarPosts || [])];
+      
+      // Mark all posts in this group as used
+      usedPosts.add(rootPost.id);
+      similarPostIds.forEach((id: number) => usedPosts.add(id));
+
+      // Calculate centroid from embeddings if available
+      const embeddings = allPostsInGroup
+        .map(post => post.embedding)
+        .filter(embedding => embedding && Array.isArray(embedding));
+      
+      const centroid = embeddings.length > 0 ? calculateCentroid(embeddings) : [];
+      const sortedGroupPosts = allPostsInGroup.sort((a, b) => a.sentiment - b.sentiment);
+
+      console.log(`Creating similarity group with ${allPostsInGroup.length} posts (root: ${rootPost.id})`);
+
+      similarityGroups.push({
+        id: `similarity_group_${similarityGroups.length + 1}`,
+        posts: allPostsInGroup,
+        centroid,
+        size: allPostsInGroup.length,
+        representative_posts: sortedGroupPosts,
+        theme_summary: `Similarity group of ${allPostsInGroup.length} posts based on pre-computed scores`,
+      });
+    }
+  }
+
+  // Sort groups by size (largest first)
+  similarityGroups.sort((a, b) => b.size - a.size);
+  console.log(`Created ${similarityGroups.length} similarity groups with sizes: ${similarityGroups.map(g => g.size).join(", ")}`);
+
+  return similarityGroups;
+}
+
 // Database-driven clustering using similarity_scores JSONB
 async function clusterPostsUsingDatabase(
   posts: PostData[],
@@ -1362,6 +1454,91 @@ function normalizeName(name: string): string {
     .trim();
 }
 
+// Helper function to get recently processed posts
+async function getRecentlyProcessedPosts(daysSince: number = 7): Promise<Set<number>> {
+  console.log(`Fetching posts processed in the last ${daysSince} days...`);
+  
+  const sinceISO = new Date(
+    Date.now() - daysSince * 86400000
+  ).toISOString();
+
+  const { data: recentIdeas, error } = await supabase
+    .from("saas_idea_items")
+    .select("representative_post_ids")
+    .gte("created_at", sinceISO)
+    .not("representative_post_ids", "is", null);
+
+  if (error) {
+    console.warn("Failed to fetch recently processed posts:", error);
+    return new Set();
+  }
+
+  const processedPostIds = new Set<number>();
+  (recentIdeas || []).forEach((idea) => {
+    if (Array.isArray(idea.representative_post_ids)) {
+      idea.representative_post_ids.forEach((id: number) => {
+        processedPostIds.add(id);
+      });
+    }
+  });
+
+  console.log(`Found ${processedPostIds.size} recently processed posts`);
+  return processedPostIds;
+}
+
+// Helper function to create similarity group fingerprint
+function createGroupFingerprint(posts: PostData[]): string {
+  // Create a stable fingerprint based on sorted post IDs
+  const sortedIds = posts.map(p => p.id).sort((a, b) => a - b);
+  return sortedIds.join(",");
+}
+
+// Helper function to get recent similarity group fingerprints
+async function getRecentGroupFingerprints(daysSince: number = 3): Promise<Set<string>> {
+  console.log(`Fetching similarity groups processed in the last ${daysSince} days...`);
+  
+  const sinceISO = new Date(
+    Date.now() - daysSince * 86400000
+  ).toISOString();
+
+  const { data: recentRuns, error } = await supabase
+    .from("saas_idea_runs")
+    .select("id")
+    .gte("created_at", sinceISO);
+
+  if (error || !recentRuns) {
+    console.warn("Failed to fetch recent runs:", error);
+    return new Set();
+  }
+
+  const runIds = recentRuns.map(r => r.id);
+  if (runIds.length === 0) {
+    return new Set();
+  }
+
+  const { data: recentIdeas, error: ideasError } = await supabase
+    .from("saas_idea_items")
+    .select("representative_post_ids")
+    .in("run_id", runIds)
+    .not("representative_post_ids", "is", null);
+
+  if (ideasError) {
+    console.warn("Failed to fetch recent idea post IDs:", ideasError);
+    return new Set();
+  }
+
+  const groupFingerprints = new Set<string>();
+  (recentIdeas || []).forEach((idea) => {
+    if (Array.isArray(idea.representative_post_ids) && idea.representative_post_ids.length > 0) {
+      const fingerprint = idea.representative_post_ids.sort((a: number, b: number) => a - b).join(",");
+      groupFingerprints.add(fingerprint);
+    }
+  });
+
+  console.log(`Found ${groupFingerprints.size} recent similarity group fingerprints`);
+  return groupFingerprints;
+}
+
 async function generateIdeasFromPosts(parameters: any): Promise<{
   ideas: any[];
   clusters_processed: number;
@@ -1377,12 +1554,16 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
     started_at: new Date().toISOString(),
     progress: {
       current_step: "Fetching posts with embeddings",
-      total_steps: 5,
+      total_steps: 6,
       completed_steps: 0,
     },
   });
 
-  // Fetch posts with embeddings - NO LIMITS
+  // Get recently processed posts and groups for variety
+  const recentlyProcessedPosts = await getRecentlyProcessedPosts(parameters.avoid_recent_days || 7);
+  const recentGroupFingerprints = await getRecentGroupFingerprints(parameters.avoid_recent_groups_days || 3);
+
+  // Fetch posts with embeddings - with freshness prioritization
   const sinceISO = new Date(
     Date.now() - (parameters.days || 14) * 86400000
   ).toISOString();
@@ -1406,25 +1587,27 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
     query = query.gte("saas_score", parameters.min_saas_score);
   }
 
-  // NO LIMIT - fetch as many posts as possible
+  // Prioritize newer posts for variety
   const { data: rawPosts, error: postsError } = await query
-    .order("saas_score", { ascending: false }) // Prioritize high SaaS scores
-    .order("created_at", { ascending: false })
-    .limit(parameters.limit || 1000); // Much higher default
+    .order("created_at", { ascending: false }) // Newest first for variety
+    .order("saas_score", { ascending: false })
+    .limit(parameters.limit || 1000);
 
   if (postsError || !rawPosts) {
     throw new Error(`Failed to fetch posts: ${postsError?.message}`);
   }
 
   console.log(`Fetched ${rawPosts.length} posts`);
+  console.log(`Excluding ${recentlyProcessedPosts.size} recently processed posts`);
 
-  // Filter for SaaS opportunities
+  // Filter for SaaS opportunities and exclude recently processed posts
   await updateJobStatus(jobId, {
     progress: {
-      current_step: "Filtering for SaaS opportunities",
-      total_steps: 5,
+      current_step: "Filtering for SaaS opportunities and applying variety filters",
+      total_steps: 6,
       completed_steps: 1,
       posts_fetched: rawPosts.length,
+      recently_processed_posts: recentlyProcessedPosts.size,
     },
   });
 
@@ -1458,12 +1641,15 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
     }
 
     if (isOpportunity) {
-      opportunityPosts.push({
-        ...post,
-        opportunity_type: opportunityType,
-        opportunity_signals: signals,
-      });
-      (opportunityStats as any)[opportunityType]++;
+      // Skip recently processed posts for variety
+      if (!recentlyProcessedPosts.has(post.id)) {
+        opportunityPosts.push({
+          ...post,
+          opportunity_type: opportunityType,
+          opportunity_signals: signals,
+        });
+        (opportunityStats as any)[opportunityType]++;
+      }
     }
   }
 
@@ -1488,35 +1674,48 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
     };
   }
 
-  // Perform clustering using database-driven approach
+  // Use direct similarity-based approach with variety filtering
   await updateJobStatus(jobId, {
     progress: {
-      current_step: "Performing database-driven clustering",
-      total_steps: 5,
+      current_step: "Organizing posts by similarity groups with variety filtering",
+      total_steps: 6,
       completed_steps: 2,
       posts_found: opportunityPosts.length,
     },
   });
 
-  const clusters = await clusterPostsUsingDatabase(
+  const allSimilarityGroups = await organizeBySimilarityGroups(
     opportunityPosts,
     parameters.similarity_threshold || 0.3,
-    parameters.min_cluster_size || 2
+    parameters.min_group_size || 3
   );
 
-  console.log(`Created ${clusters.length} clusters`);
+  // Filter out recently processed similarity groups for variety
+  console.log(`Filtering ${allSimilarityGroups.length} similarity groups against ${recentGroupFingerprints.size} recent fingerprints`);
+  const similarityGroups = allSimilarityGroups.filter(group => {
+    const fingerprint = createGroupFingerprint(group.posts);
+    const isDuplicate = recentGroupFingerprints.has(fingerprint);
+    if (isDuplicate) {
+      console.log(`Skipping duplicate similarity group: ${group.theme_summary} (${group.size} posts)`);
+    }
+    return !isDuplicate;
+  });
+  
+  console.log(`After variety filtering: ${similarityGroups.length} unique similarity groups`);
 
-  if (clusters.length === 0) {
+  console.log(`Created ${similarityGroups.length} similarity groups`);
+
+  if (similarityGroups.length === 0) {
     await updateJobStatus(jobId, {
       status: "completed",
       completed_at: new Date().toISOString(),
       result: {
-        message: `No clusters found with threshold ${
-          parameters.similarity_threshold || 0.3
-        } and min size ${
-          parameters.min_cluster_size || 2
-        }. Try lowering similarity threshold or minimum cluster size.`,
+        message: allSimilarityGroups.length === 0 
+          ? `No similarity groups found with threshold ${parameters.similarity_threshold || 0.3} and min size ${parameters.min_group_size || 3}. Try lowering similarity threshold or minimum group size.`
+          : `No new similarity groups found after variety filtering. All ${allSimilarityGroups.length} groups were recently processed. Try again later or adjust avoid_recent_groups_days parameter.`,
         ideas_generated: 0,
+        total_groups_found: allSimilarityGroups.length,
+        groups_filtered_out: allSimilarityGroups.length,
       },
     });
     return {
@@ -1526,58 +1725,59 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
     };
   }
 
-  // Generate themes for clusters
+  // Generate themes for similarity groups
   await updateJobStatus(jobId, {
     progress: {
-      current_step: "Generating cluster themes",
-      total_steps: 5,
+      current_step: "Generating similarity group themes",
+      total_steps: 6,
       completed_steps: 3,
-      clusters_found: clusters.length,
+      clusters_found: similarityGroups.length,
+      variety_filters_applied: true,
     },
   });
 
-  // Generate themes for clusters in batches to avoid rate limits
+  // Generate themes for similarity groups in batches to avoid rate limits
   console.log(
-    `Generating themes for ${clusters.length} clusters in batches...`
+    `Generating themes for ${similarityGroups.length} similarity groups in batches...`
   );
-  for (let i = 0; i < clusters.length; i += MAX_CLUSTERS_PER_BATCH) {
-    const batch = clusters.slice(i, i + MAX_CLUSTERS_PER_BATCH);
+  for (let i = 0; i < similarityGroups.length; i += MAX_CLUSTERS_PER_BATCH) {
+    const batch = similarityGroups.slice(i, i + MAX_CLUSTERS_PER_BATCH);
     console.log(
       `Processing theme batch ${
         Math.floor(i / MAX_CLUSTERS_PER_BATCH) + 1
-      }/${Math.ceil(clusters.length / MAX_CLUSTERS_PER_BATCH)} (${
+      }/${Math.ceil(similarityGroups.length / MAX_CLUSTERS_PER_BATCH)} (${
         batch.length
-      } clusters)`
+      } similarity groups)`
     );
 
-    const themePromises = batch.map(async (cluster) => {
+    const themePromises = batch.map(async (group) => {
       try {
-        cluster.theme_summary = await generateClusterTheme(cluster);
+        group.theme_summary = await generateClusterTheme(group);
         console.log(
-          `Generated theme for ${cluster.id}: ${cluster.theme_summary}`
+          `Generated theme for ${group.id}: ${group.theme_summary}`
         );
       } catch (error) {
-        console.warn(`Failed to generate theme for ${cluster.id}:`, error);
-        cluster.theme_summary = `Cluster of ${cluster.size} similar posts`;
+        console.warn(`Failed to generate theme for ${group.id}:`, error);
+        group.theme_summary = `Similarity group of ${group.size} similar posts`;
       }
     });
 
     await Promise.all(themePromises);
 
     // Add delay between batches to avoid rate limits
-    if (i + MAX_CLUSTERS_PER_BATCH < clusters.length) {
+    if (i + MAX_CLUSTERS_PER_BATCH < similarityGroups.length) {
       console.log("Waiting 30s between theme generation batches...");
       await sleep(30000);
     }
   }
 
-  // Generate ideas from ALL clusters - NO LIMITS
+  // Generate ideas from ALL similarity groups - NO LIMITS
   await updateJobStatus(jobId, {
     progress: {
-      current_step: "Generating ideas from clusters",
+      current_step: "Generating ideas from similarity groups",
       total_steps: 5,
       completed_steps: 4,
-      clusters_with_themes: clusters.length,
+      clusters_with_themes: similarityGroups.length,
     },
   });
 
@@ -1592,70 +1792,70 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
     (idea) => `${idea.name} (Target: ${idea.target_user || "N/A"})`
   );
 
-  // Process clusters in batches to manage rate limits
+  // Process similarity groups in batches to manage rate limits
   const allIdeas: any[] = [];
 
   console.log(
-    `Processing ${clusters.length} clusters for idea generation in batches...`
+    `Processing ${similarityGroups.length} similarity groups for idea generation in batches...`
   );
   for (
     let batchStart = 0;
-    batchStart < clusters.length;
+    batchStart < similarityGroups.length;
     batchStart += MAX_CLUSTERS_PER_BATCH
   ) {
     const batchEnd = Math.min(
       batchStart + MAX_CLUSTERS_PER_BATCH,
-      clusters.length
+      similarityGroups.length
     );
-    const currentBatch = clusters.slice(batchStart, batchEnd);
+    const currentBatch = similarityGroups.slice(batchStart, batchEnd);
 
     console.log(
       `Processing idea generation batch ${
         Math.floor(batchStart / MAX_CLUSTERS_PER_BATCH) + 1
-      }/${Math.ceil(clusters.length / MAX_CLUSTERS_PER_BATCH)} (clusters ${
+      }/${Math.ceil(similarityGroups.length / MAX_CLUSTERS_PER_BATCH)} (groups ${
         batchStart + 1
       }-${batchEnd})`
     );
 
     for (let i = 0; i < currentBatch.length; i++) {
-      const clusterIndex = batchStart + i;
-      const cluster = currentBatch[i];
+      const groupIndex = batchStart + i;
+      const group = currentBatch[i];
       console.log(
-        `Processing cluster ${clusterIndex + 1}/${clusters.length}: ${
-          cluster.theme_summary
-        } (${cluster.size} posts)`
+        `Processing similarity group ${groupIndex + 1}/${similarityGroups.length}: ${
+          group.theme_summary
+        } (${group.size} posts)`
       );
 
       await updateJobStatus(jobId, {
         progress: {
-          current_step: `Generating ideas from cluster ${clusterIndex + 1}/${
-            clusters.length
+          current_step: `Generating ideas from similarity group ${groupIndex + 1}/${
+            similarityGroups.length
           }`,
           total_steps: 5,
           completed_steps: 4,
-          clusters_processed: clusterIndex,
+          clusters_processed: groupIndex,
         },
       });
 
       try {
         const { system, user } = buildEnhancedPrompt(
-          cluster,
+          group,
           existingIdeaNames
         );
         const result = await callOpenAI(system, user);
 
         const ideas = Array.isArray(result?.ideas) ? result.ideas : [];
         console.log(
-          `Cluster ${clusterIndex + 1}: Generated ${ideas.length} raw ideas`
+          `Similarity group ${groupIndex + 1}: Generated ${ideas.length} raw ideas`
         );
 
         // Apply workflow automation boost if enabled
         const enhancedIdeas = ideas.map((idea: any) => {
           const baseIdea = {
             ...idea,
-            cluster_id: cluster.id,
-            cluster_theme: cluster.theme_summary,
-            cluster_size: cluster.size,
+            cluster_id: group.id,
+            cluster_theme: group.theme_summary,
+            cluster_size: group.size,
           };
 
           if (parameters.enable_automation_boost !== false) {
@@ -1677,14 +1877,14 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
           (idea: any) => idea.score >= MIN_SCORE_THRESHOLD
         );
         console.log(
-          `Cluster ${clusterIndex + 1}: ${
+          `Similarity group ${groupIndex + 1}: ${
             filteredIdeas.length
           } ideas above threshold`
         );
 
         allIdeas.push(...filteredIdeas);
       } catch (error) {
-        console.error(`Cluster ${clusterIndex + 1} processing failed:`, error);
+        console.error(`Similarity group ${groupIndex + 1} processing failed:`, error);
 
         // Check if it's a rate limit error that exhausted all models
         if (
@@ -1700,9 +1900,9 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
             status: "completed",
             completed_at: new Date().toISOString(),
             result: {
-              message: `Partial completion due to OpenAI rate limits. Processed ${clusterIndex}/${clusters.length} clusters.`,
+              message: `Partial completion due to OpenAI rate limits. Processed ${groupIndex}/${similarityGroups.length} similarity groups.`,
               ideas_generated: allIdeas.length,
-              clusters_processed: clusterIndex,
+              clusters_processed: groupIndex,
               rate_limited: true,
               suggestion:
                 "Try again tomorrow or upgrade OpenAI plan for higher limits",
@@ -1712,7 +1912,7 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
           // Return partial results
           return {
             ideas: allIdeas,
-            clusters_processed: clusterIndex,
+            clusters_processed: groupIndex,
             posts_processed: rawPosts.length,
           };
         }
@@ -1725,12 +1925,12 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
     }
 
     // Add longer delay between batches to prevent rate limiting
-    if (batchEnd < clusters.length) {
+    if (batchEnd < similarityGroups.length) {
       console.log(
         `Completed batch ${
           Math.floor(batchStart / MAX_CLUSTERS_PER_BATCH) + 1
         }/${Math.ceil(
-          clusters.length / MAX_CLUSTERS_PER_BATCH
+          similarityGroups.length / MAX_CLUSTERS_PER_BATCH
         )}, waiting 60s before next batch...`
       );
       await sleep(60000); // 1 minute between batches
@@ -1738,12 +1938,12 @@ async function generateIdeasFromPosts(parameters: any): Promise<{
   }
 
   console.log(
-    `Generated ${allIdeas.length} total ideas from ${clusters.length} clusters`
+    `Generated ${allIdeas.length} total ideas from ${similarityGroups.length} similarity groups`
   );
 
   return {
     ideas: allIdeas,
-    clusters_processed: clusters.length,
+    clusters_processed: similarityGroups.length,
     posts_processed: rawPosts.length,
   };
 }
@@ -1819,7 +2019,10 @@ async function storeIdeas(
     }
   }
 
-  console.log(`Inserted ${insertedCount} ideas into database`);
+  console.log(`Inserted ${insertedCount} ideas into database:`);
+  preparedIdeas.forEach((idea, index) => {
+    console.log(`  ${index + 1}. ${idea.name} (Score: ${idea.score})`);
+  });
   return { run_id: runId, inserted_count: insertedCount };
 }
 
@@ -1827,7 +2030,7 @@ async function storeIdeas(
 app.get("/", (_req: Request, res: Response) => {
   res.json({
     service: "Railway Ideas Service",
-    version: "1.0.0",
+    version: "1.1.0",
     platform: "Railway",
     status: "running",
     capabilities: [
@@ -1836,6 +2039,10 @@ app.get("/", (_req: Request, res: Response) => {
       "No timeout restrictions",
       "Complete ideas pipeline",
       "Advanced workflow automation detection",
+      "Post processing tracking for variety",
+      "Similarity group fingerprinting",
+      "Semantic deduplication",
+      "Temporal freshness prioritization",
     ],
     endpoints: {
       health: "/health",
@@ -1911,8 +2118,9 @@ app.post("/generate-ideas", async (req: Request, res: Response) => {
         platform_info: {
           name: "railway",
           service: "ideas-generation",
-          version: "1.0.0",
+          version: "1.1.0",
           unlimited: true,
+          variety_features_enabled: true,
         },
       });
     }
@@ -1921,8 +2129,8 @@ app.post("/generate-ideas", async (req: Request, res: Response) => {
     await updateJobStatus(jobId, {
       progress: {
         current_step: "Storing ideas in database",
-        total_steps: 5,
-        completed_steps: 4,
+        total_steps: 6,
+        completed_steps: 5,
         ideas_generated: result.ideas.length,
       },
     });
@@ -1958,7 +2166,7 @@ app.post("/generate-ideas", async (req: Request, res: Response) => {
       platform_info: {
         name: "railway",
         service: "ideas-generation",
-        version: "1.0.0",
+        version: "1.1.0",
         unlimited: true,
         limits_removed: [
           "No 8-minute timeout",
@@ -1988,7 +2196,7 @@ app.post("/generate-ideas", async (req: Request, res: Response) => {
       platform_info: {
         name: "railway",
         service: "ideas-generation",
-        version: "1.0.0",
+        version: "1.1.0",
         unlimited: true,
       },
     });
@@ -2000,7 +2208,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Railway Ideas Service running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(
-    `🎯 Features: Unlimited processing, no timeouts, complete pipeline`
+    `🎯 Features: Unlimited processing, no timeouts, complete pipeline, variety filtering`
   );
   console.log(`💡 Endpoints:`);
   console.log(`   - Health: http://localhost:${PORT}/health`);
